@@ -7,7 +7,7 @@
     "build": "npx @nestjs/cli build && npx prisma generate",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "npx prisma migrate resolve --applied 20260327204944_add_settings || true && npx prisma migrate deploy && node dist/src/main.js",
+    "start:prod": "npx prisma db push --accept-data-loss && node dist/src/main.js",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "test": "jest",
     "test:watch": "jest --watch",
