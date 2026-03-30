@@ -55,7 +55,8 @@ export default function SettingsPage() {
     try {
       setSaving(true);
       const res = await api.post("/uploads?folder=logo", formData);
-      const logoUrl = res.url.startsWith('http') ? res.url : `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api'}${res.url}`;
+      const API_Url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+      const logoUrl = res.url.startsWith('http') ? res.url : `${API_Url}${res.url}`;
       
       setSettings({...settings, logo: logoUrl});
       

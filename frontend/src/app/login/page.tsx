@@ -20,7 +20,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     // Attempt to fetch public settings for branding
-    fetch("http://localhost:4000/api/settings")
+    const API_Url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000/api';
+    fetch(`${API_Url}/settings`)
       .then(res => res.json())
       .then(setSettings)
       .catch(() => {});
