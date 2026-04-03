@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { api } from "@/lib/api";
 import { formatCurrency, formatDate, getStatusColor } from "@/lib/utils";
-import { Plus, Search, CreditCard, Loader2, Receipt, Wallet, Banknote, ShieldCheck, Paperclip, Eye, FileText, Calendar, User, Building } from "lucide-react";
+import { Plus, Search, CreditCard, Loader2, Receipt, Wallet, Banknote, ShieldCheck, Paperclip, Eye, FileText, Calendar, User, Building, Trash2 } from "lucide-react";
 import { AttachmentManager } from "@/components/shared/attachment-manager";
 import { useCurrency } from "@/context/currency-context";
 import { cn } from "@/lib/utils";
@@ -30,6 +30,8 @@ export default function PaymentsPage() {
   const [selectedPayment, setSelectedPayment] = useState<any>(null);
   const [showPaymentDetails, setShowPaymentDetails] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { load(); loadLeases(); }, [search]);
   
@@ -52,8 +54,21 @@ export default function PaymentsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/payments", { ...form, amount: parseFloat(form.amount) });
+      const res = await api.post("/payments", { ...form, amount: parseFloat(form.amount) });
+      const paymentId = res.id;
+
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'PAYMENT');
+          formData.append('entityId', paymentId);
+          await api.post("/attachments/upload", formData);
+        }
+      }
+
       setShowCreate(false);
+      setCreationFiles([]);
       load();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -260,6 +275,54 @@ export default function PaymentsPage() {
                       placeholder="رقم العملية أو ملاحظات إضافية..." 
                       className="w-full h-24 p-4 bg-slate-50/50 border border-slate-100 rounded-xl font-bold focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all text-sm text-slate-900"
                     />
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  <Label className="text-slate-700 font-bold px-1 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4 text-indigo-500" /> إيصال الدفع / صور التحويل
+                  </Label>
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
+                    <input 
+                      type="file" 
+                      multiple 
+                      className="hidden" 
+                      ref={creationFilesInputRef}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setCreationFiles(prev => [...prev, ...files]);
+                      }}
+                      accept="image/*,application/pdf"
+                    />
+                    <div className="flex flex-col items-center justify-center text-center space-y-2">
+                      <Button 
+                        type="button" 
+                        onClick={() => creationFilesInputRef.current?.click()}
+                        variant="ghost"
+                        className="text-indigo-600 font-bold hover:bg-white"
+                      >
+                        <Plus className="w-4 h-4 ml-1" /> إضافة مرفقات مالية
+                      </Button>
+                    </div>
+
+                    {creationFiles.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {creationFiles.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
+                            <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-rose-500 h-7 w-7"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -19,7 +19,51 @@ export default function PropertiesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ name: "", address: "", city: "بغداد", state: "", country: "العراق", zipCode: "", description: "", mapUrl: "" });
+  const [form, setForm] = useState({ 
+    name: "", 
+    address: "", 
+    city: "بغداد", 
+    state: "", 
+    country: "العراق", 
+    zipCode: "", 
+    description: "", 
+    mapUrl: "",
+    issuer: "",
+    registrationDirectorate: "",
+    formType: "",
+    governorate: "بغداد",
+    district: "",
+    subDistrict: "",
+    street: "",
+    recordNumber: "",
+    recordDate: "",
+    recordVolume: "",
+    prevRecordNumber: "",
+    prevRecordDate: "",
+    prevRecordVolume: "",
+    propertySequence: "",
+    neighborhoodName: "",
+    doorNumber: "",
+    plotNumber: "",
+    sectionNumber: "",
+    sectionName: "",
+    ownerNationality: "",
+    boundaries: "كما في الخارطة",
+    propertyGender: "",
+    propertyTypeDetailed: "",
+    contents: "",
+    easements: "",
+    areaSqm: 0,
+    areaOlk: 0,
+    areaDonum: 0,
+    registrationNature: "",
+    insuranceNotes: "",
+    deedRuling: "",
+    requestingEntity: "",
+    certificationDate: ""
+  });
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
   const [meta, setMeta] = useState<any>({});
   const [selectedProperty, setSelectedProperty] = useState<any>(null);
@@ -66,9 +110,69 @@ export default function PropertiesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/properties", form);
+      const res = await api.post("/properties", form);
+      const propertyId = res.id;
+
+      // Handle attachments if any
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'PROPERTY');
+          formData.append('entityId', propertyId);
+          try {
+            await api.post("/attachments/upload", formData);
+          } catch (uploadErr) {
+            console.error("Failed to upload file:", file.name, uploadErr);
+          }
+        }
+      }
+
       setShowCreate(false);
-      setForm({ name: "", address: "", city: "بغداد", state: "", country: "العراق", zipCode: "", description: "", mapUrl: "" });
+      setCreationFiles([]);
+      setForm({ 
+        name: "", 
+        address: "", 
+        city: "بغداد", 
+        state: "", 
+        country: "العراق", 
+        zipCode: "", 
+        description: "", 
+        mapUrl: "",
+        issuer: "",
+        registrationDirectorate: "",
+        formType: "",
+        governorate: "بغداد",
+        district: "",
+        subDistrict: "",
+        street: "",
+        recordNumber: "",
+        recordDate: "",
+        recordVolume: "",
+        prevRecordNumber: "",
+        prevRecordDate: "",
+        prevRecordVolume: "",
+        propertySequence: "",
+        neighborhoodName: "",
+        doorNumber: "",
+        plotNumber: "",
+        sectionNumber: "",
+        sectionName: "",
+        ownerNationality: "",
+        boundaries: "كما في الخارطة",
+        propertyGender: "",
+        propertyTypeDetailed: "",
+        contents: "",
+        easements: "",
+        areaSqm: 0,
+        areaOlk: 0,
+        areaDonum: 0,
+        registrationNature: "",
+        insuranceNotes: "",
+        deedRuling: "",
+        requestingEntity: "",
+        certificationDate: ""
+      });
       load();
     } catch (err: any) {
       alert(err.message);
@@ -210,47 +314,313 @@ export default function PropertiesPage() {
       )}
 
       <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-[550px] border-none shadow-2xl bg-white rounded-[32px] overflow-hidden p-0" dir="rtl">
-          <form onSubmit={handleCreate}>
-            <div className="p-8 space-y-6">
-              <DialogHeader className="text-right">
-                <DialogTitle className="text-3xl font-black text-slate-900 leading-tight">إضافة صرح جديد</DialogTitle>
-                <DialogDescription className="text-slate-700 font-bold">أدخل المعلومات الأساسية للعقار الجديد لتوثيقه في النظام</DialogDescription>
+        <DialogContent className="sm:max-w-[1000px] max-h-[95vh] flex flex-col border-none shadow-2xl bg-white rounded-[40px] overflow-hidden p-0" dir="rtl">
+          <form onSubmit={handleCreate} className="flex flex-col h-full overflow-hidden">
+            <div className="p-10 pb-6 border-b border-slate-100 shrink-0 flex items-center justify-between">
+               <DialogHeader className="text-right">
+                <DialogTitle className="text-4xl font-black text-slate-900 leading-tight flex items-center gap-4">
+                  <div className="w-16 h-16 bg-indigo-600 rounded-[24px] flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                    <Plus className="w-8 h-8" />
+                  </div>
+                  توثيق سند عقاري جديد
+                </DialogTitle>
+                <DialogDescription className="text-slate-700 text-lg font-bold mt-2 pr-20">أدخل كافة البيانات الرسمية للسند العقاري وفقاً للمعايير القانونية</DialogDescription>
               </DialogHeader>
-
-              <div className="space-y-5 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold px-1">اسم العقار</Label>
-                  <Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="مثال: مجمع الياقوت السكني" className="h-14 bg-slate-50/50 border-slate-100 rounded-2xl font-bold text-lg focus:ring-indigo-500/10 focus:border-indigo-500/30" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold px-1">العنوان بالتفصيل</Label>
-                  <Input required value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="المدينة، المنطقة، الشارع" className="h-14 bg-slate-50/50 border-slate-100 rounded-2xl focus:ring-indigo-500/10 focus:border-indigo-500/30 font-bold" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2 text-right">
-                    <Label className="text-slate-700 font-bold px-1">المدينة</Label>
-                    <Input required value={form.city} onChange={e => setForm({ ...form, city: e.target.value })} placeholder="بغداد" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold" />
-                  </div>
-                  <div className="space-y-2 text-right">
-                    <Label className="text-slate-700 font-bold px-1">نوع العقار</Label>
-                    <Input value={form.state} onChange={e => setForm({ ...form, state: e.target.value })} placeholder="سكني / تجاري" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold px-1 flex items-center gap-2">
-                    <Map className="w-4 h-4 text-indigo-500" /> رابط Google Maps
-                  </Label>
-                  <Input value={form.mapUrl} onChange={e => setForm({ ...form, mapUrl: e.target.value })} placeholder="https://maps.app.goo.gl/..." className="h-14 bg-slate-50/50 border-slate-100 rounded-2xl focus:ring-indigo-500/10 focus:border-indigo-500/30 font-bold" />
-                </div>
+              <div className="flex flex-col items-end gap-2">
+                <Button 
+                  type="button" 
+                  disabled={importing} 
+                  onClick={() => fileInputRef.current?.click()} 
+                  variant="outline" 
+                  className="border-dashed border-2 border-indigo-600 text-indigo-700 hover:bg-indigo-50 font-black h-12 px-6 rounded-2xl gap-2 transition-all shadow-premium"
+                >
+                  {importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />} تزويد بالبيانات عبر إكسل
+                </Button>
+                <span className="text-[10px] text-slate-500 font-bold ml-1 italic opacity-80">يدعم كافة حقول السند العقاري (41 حقل)</span>
               </div>
             </div>
 
-            <div className="p-8 bg-slate-50 flex gap-4">
-              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">إلغاء</Button>
-              <Button type="submit" disabled={saving} className="flex-1 h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black shadow-lg shadow-indigo-600/20 transition-all">
-                {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-                اعتماد العقار
+            <div className="flex-1 overflow-y-auto p-10 space-y-12 custom-scrollbar">
+              {/* General Information Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-indigo-600 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">معلومات عامة</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">اسم العقار (للنظام)</Label>
+                    <Input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="مثال: بناية المنصور" className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1 flex items-center gap-1 group">
+                      الجهة المصدرة <span className="text-rose-500">*</span>
+                    </Label>
+                    <Input required value={form.issuer} onChange={e => setForm({ ...form, issuer: e.target.value })} placeholder="اسم الجهة المصدرة للسند" className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">مديرية التسجيل العقاري في <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.registrationDirectorate} onChange={e => setForm({ ...form, registrationDirectorate: e.target.value })} placeholder="المكان" className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">نوع النموذج <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.formType} onChange={e => setForm({ ...form, formType: e.target.value })} placeholder="مثال: نموذج 23" className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Current Record Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-emerald-600 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">وصف السجل العقاري الدائمي الحالي</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">المحافظة <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.governorate} onChange={e => setForm({ ...form, governorate: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">القضاء <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.district} onChange={e => setForm({ ...form, district: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">الناحية</Label>
+                    <Input value={form.subDistrict} onChange={e => setForm({ ...form, subDistrict: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">الشارع</Label>
+                    <Input value={form.street} onChange={e => setForm({ ...form, street: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">العدد <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.recordNumber} onChange={e => setForm({ ...form, recordNumber: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">التاريخ <span className="text-rose-500">*</span></Label>
+                    <Input required type="date" value={form.recordDate} onChange={e => setForm({ ...form, recordDate: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">رقم المجلد <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.recordVolume} onChange={e => setForm({ ...form, recordVolume: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Transferred From Record Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-amber-600 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">وصف السجل العقاري الدائمي المنقول منه</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">العدد <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.prevRecordNumber} onChange={e => setForm({ ...form, prevRecordNumber: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">التاريخ <span className="text-rose-500">*</span></Label>
+                    <Input required type="date" value={form.prevRecordDate} onChange={e => setForm({ ...form, prevRecordDate: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">رقم المجلد <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.prevRecordVolume} onChange={e => setForm({ ...form, prevRecordVolume: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">تسلس العقار <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.propertySequence} onChange={e => setForm({ ...form, propertySequence: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">اسم المحلة <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.neighborhoodName} onChange={e => setForm({ ...form, neighborhoodName: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">رقم الباب</Label>
+                    <Input value={form.doorNumber} onChange={e => setForm({ ...form, doorNumber: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">رقم القطعة</Label>
+                    <Input value={form.plotNumber} onChange={e => setForm({ ...form, plotNumber: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">رقم المقاطعة</Label>
+                    <Input value={form.sectionNumber} onChange={e => setForm({ ...form, sectionNumber: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                   <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">اسم المقاطعة</Label>
+                    <Input value={form.sectionName} onChange={e => setForm({ ...form, sectionName: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Ownership & Details Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-rose-600 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">تفاصيل الملكية والعقار</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">المالك أو المتصرف وتابعيته <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.ownerNationality} onChange={e => setForm({ ...form, ownerNationality: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">الحدود</Label>
+                    <Input value={form.boundaries} onChange={e => setForm({ ...form, boundaries: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">جنس العقار <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.propertyGender} onChange={e => setForm({ ...form, propertyGender: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">نوع العقار (الصنف) <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.propertyTypeDetailed} onChange={e => setForm({ ...form, propertyTypeDetailed: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">المشتملات</Label>
+                    <Input value={form.contents} onChange={e => setForm({ ...form, contents: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">حقوق الارتفاق والعقر</Label>
+                    <Input value={form.easements} onChange={e => setForm({ ...form, easements: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                </div>
+                
+                <div className="bg-slate-50 p-8 rounded-[32px] border border-slate-100 space-y-4">
+                  <Label className="text-lg font-black text-slate-900 block pr-2">المساحة النهائية <span className="text-rose-500">*</span></Label>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="space-y-2 text-right">
+                       <Label className="text-slate-700 font-bold px-1">متر مربع</Label>
+                       <Input required type="number" step="0.01" value={form.areaSqm} onChange={e => setForm({ ...form, areaSqm: parseFloat(e.target.value) })} className="h-14 bg-white border-slate-100 rounded-2xl font-bold" />
+                    </div>
+                    <div className="space-y-2 text-right">
+                       <Label className="text-slate-700 font-bold px-1">اولك</Label>
+                       <Input type="number" step="0.01" value={form.areaOlk} onChange={e => setForm({ ...form, areaOlk: parseFloat(e.target.value) })} className="h-14 bg-white border-slate-100 rounded-2xl font-bold" />
+                    </div>
+                    <div className="space-y-2 text-right">
+                       <Label className="text-slate-700 font-bold px-1">دونم</Label>
+                       <Input type="number" step="0.01" value={form.areaDonum} onChange={e => setForm({ ...form, areaDonum: parseFloat(e.target.value) })} className="h-14 bg-white border-slate-100 rounded-2xl font-bold" />
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+               {/* Registration Details Section */}
+               <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-purple-600 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">تفاصيل التسجيل</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">ماهية التسجيل ومستنداته <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.registrationNature} onChange={e => setForm({ ...form, registrationNature: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">اشارات التأمينات العينية والحجز ومواقع التسجيل</Label>
+                    <Input value={form.insuranceNotes} onChange={e => setForm({ ...form, insuranceNotes: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">حكم السند</Label>
+                    <Input value={form.deedRuling} onChange={e => setForm({ ...form, deedRuling: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Certifications Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-slate-400 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">التصديقات (أسفل الوثيقة)</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1">الجهة الطالبة للصورة <span className="text-rose-500">*</span></Label>
+                    <Input required value={form.requestingEntity} onChange={e => setForm({ ...form, requestingEntity: e.target.value })} className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-slate-700 font-bold px-1 text-rose-600 font-black">تاريخ التصديق <span className="text-rose-500">*</span></Label>
+                    <Input required type="date" value={form.certificationDate} onChange={e => setForm({ ...form, certificationDate: e.target.value })} className="h-14 bg-rose-50 border-rose-100 rounded-2xl font-bold text-rose-900" />
+                  </div>
+                </div>
+              </section>
+
+              {/* Attachments Section */}
+              <section className="space-y-6">
+                <div className="flex items-center gap-3 border-r-4 border-indigo-400 pr-4">
+                   <h3 className="text-2xl font-black text-slate-900">المرفقات (صور / PDF)</h3>
+                </div>
+                <div className="bg-slate-50 p-8 rounded-[32px] border border-dashed border-slate-300">
+                   <div className="flex flex-col items-center justify-center text-center space-y-4">
+                      <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center text-slate-400 shadow-sm">
+                         <Paperclip className="w-8 h-8" />
+                      </div>
+                      <div>
+                         <p className="text-lg font-bold text-slate-900">إضافة وثائق العقار</p>
+                         <p className="text-slate-500 font-medium">سند الملكية، صور العقار، الخرائط (يسمح بـ JPG, PNG, PDF)</p>
+                      </div>
+                      <input 
+                        type="file" 
+                        multiple 
+                        className="hidden" 
+                        ref={creationFilesInputRef}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          setCreationFiles(prev => [...prev, ...files]);
+                        }}
+                        accept="image/*,application/pdf"
+                      />
+                      <Button 
+                        type="button" 
+                        onClick={() => creationFilesInputRef.current?.click()}
+                        variant="outline"
+                        className="bg-white border-slate-200 text-indigo-600 font-bold px-8 rounded-xl h-12 hover:bg-slate-100"
+                      >
+                         <Plus className="w-5 h-5 ml-2" /> اختيار ملفات
+                      </Button>
+                   </div>
+
+                   {creationFiles.length > 0 && (
+                     <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {creationFiles.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-4 bg-white rounded-2xl border border-slate-100 shadow-sm">
+                             <div className="flex items-center gap-3 overflow-hidden">
+                                <FileText className="w-5 h-5 text-indigo-500 flex-shrink-0" />
+                                <span className="text-sm font-bold truncate text-slate-700">{file.name}</span>
+                             </div>
+                             <Button 
+                                type="button" 
+                                variant="ghost" 
+                                size="icon" 
+                                onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                                className="text-rose-500 hover:bg-rose-50 rounded-lg h-8 w-8"
+                             >
+                                <Trash2 className="w-4 h-4" />
+                             </Button>
+                          </div>
+                        ))}
+                     </div>
+                   )}
+                </div>
+              </section>
+
+              {/* Old Fields kept for backup / display */}
+              <section className="space-y-6 pt-10 border-t border-slate-100 opacity-60">
+                 <h4 className="text-lg font-bold text-slate-500">معلومات الموقع والتقنية</h4>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-bold px-1">العنوان التفصيلي (للنظام)</Label>
+                      <Input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} placeholder="المنطقة، الشارع، المحلة" className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-slate-700 font-bold px-1 flex items-center gap-2 font-black">
+                        <Map className="w-4 h-4 text-indigo-500" /> رابط Google Maps
+                      </Label>
+                      <Input value={form.mapUrl} onChange={e => setForm({ ...form, mapUrl: e.target.value })} placeholder="https://maps.app.goo.gl/..." className="h-14 bg-slate-50 border-slate-100 rounded-2xl font-bold" />
+                    </div>
+                 </div>
+              </section>
+            </div>
+
+            <div className="p-10 bg-slate-50 border-t border-slate-100 shrink-0 flex gap-6">
+              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="h-16 px-10 rounded-2xl font-bold text-slate-600 hover:bg-slate-200 transition-all text-xl">إلغاء</Button>
+              <Button type="submit" disabled={saving} className="flex-1 h-16 bg-indigo-600 text-white hover:bg-indigo-700 rounded-2xl font-black shadow-xl shadow-indigo-600/20 transition-all text-xl gap-3">
+                {saving ? <Loader2 className="w-6 h-6 animate-spin" /> : <Plus className="w-6 h-6" />}
+                اعتماد وتوثيق العقار
               </Button>
             </div>
           </form>
@@ -287,11 +657,85 @@ export default function PropertiesPage() {
                     <p className="text-[10px] text-slate-600 font-black uppercase mb-1">المنطقة</p>
                     <p className="text-xl font-black text-slate-900">{selectedProperty?.city}</p>
                  </div>
-                 <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
+                  <div className="p-5 bg-slate-50 rounded-[24px] border border-slate-100 text-center">
                     <p className="text-[10px] text-slate-600 font-black uppercase mb-1">تاريخ التسجيل</p>
                     <p className="text-xs font-black text-slate-900">{selectedProperty?.createdAt ? new Date(selectedProperty.createdAt).toLocaleDateString('ar-IQ') : '—'}</p>
                  </div>
               </div>
+
+              {selectedProperty?.issuer && (
+                <div className="space-y-6 bg-indigo-50/30 p-8 rounded-[36px] border border-indigo-100/50">
+                   <h4 className="text-xl font-black text-indigo-900 flex items-center gap-2">
+                     <FileText className="w-6 h-6 text-indigo-600" />
+                     بيانات السجل العقاري الرسمي
+                   </h4>
+                   
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">الجهة المصدرة</p>
+                        <p className="font-bold text-slate-900">{selectedProperty.issuer}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">مديرية التسجيل في</p>
+                        <p className="font-bold text-slate-900">{selectedProperty.registrationDirectorate}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase tracking-widest">نوع النموذج</p>
+                        <p className="font-bold text-slate-900">{selectedProperty.formType}</p>
+                      </div>
+                   </div>
+
+                   <hr className="border-indigo-100" />
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                      <div className="space-y-4">
+                         <h5 className="text-sm font-black text-indigo-700 underline underline-offset-4">السجل الدائمي الحالي</h5>
+                         <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div><span className="text-slate-500 font-bold ml-2">المحافظة:</span> <span className="font-black">{selectedProperty.governorate}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">القضاء:</span> <span className="font-black">{selectedProperty.district}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">العدد:</span> <span className="font-black">{selectedProperty.recordNumber}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">التاريخ:</span> <span className="font-black">{selectedProperty.recordDate ? new Date(selectedProperty.recordDate).toLocaleDateString('ar-IQ') : '—'}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">المجلد:</span> <span className="font-black">{selectedProperty.recordVolume}</span></div>
+                         </div>
+                      </div>
+
+                      <div className="space-y-4">
+                         <h5 className="text-sm font-black text-amber-700 underline underline-offset-4">السجل المنقول منه</h5>
+                         <div className="grid grid-cols-2 gap-4 text-sm">
+                            <div><span className="text-slate-500 font-bold ml-2">العدد:</span> <span className="font-black">{selectedProperty.prevRecordNumber}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">التاريخ:</span> <span className="font-black">{selectedProperty.prevRecordDate ? new Date(selectedProperty.prevRecordDate).toLocaleDateString('ar-IQ') : '—'}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">المجلد:</span> <span className="font-black">{selectedProperty.prevRecordVolume}</span></div>
+                            <div><span className="text-slate-500 font-bold ml-2">التسلسل:</span> <span className="font-black">{selectedProperty.propertySequence}</span></div>
+                         </div>
+                      </div>
+                   </div>
+
+                   <hr className="border-indigo-100" />
+
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 text-sm">
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase">المالك والتابعية</p>
+                        <p className="font-black text-slate-900">{selectedProperty.ownerNationality}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase">المساحة</p>
+                        <p className="font-black text-slate-900">
+                          {selectedProperty.areaSqm && <span>{selectedProperty.areaSqm} م٢ </span>}
+                          {selectedProperty.areaOlk && <span> / {selectedProperty.areaOlk} اولك </span>}
+                          {selectedProperty.areaDonum && <span> / {selectedProperty.areaDonum} دونم </span>}
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase">جنس ونوع العقار</p>
+                        <p className="font-black text-slate-900">{selectedProperty.propertyGender} - {selectedProperty.propertyTypeDetailed}</p>
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-[10px] text-indigo-600 font-black uppercase">الجهة الطالبة</p>
+                        <p className="font-black text-slate-900">{selectedProperty.requestingEntity} ({selectedProperty.certificationDate ? new Date(selectedProperty.certificationDate).toLocaleDateString('ar-IQ') : '—'})</p>
+                      </div>
+                   </div>
+                </div>
+              )}
 
               <div className="space-y-4">
                  <h4 className="text-lg font-black text-slate-900 flex items-center gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Zap, Plus, Search, Filter, ArrowDownRight, ArrowUpRight, 
   Trash2, Receipt, Home, Calendar, CreditCard, Loader2,
@@ -42,6 +42,8 @@ export default function ExpensesPage() {
   const [selectedExpense, setSelectedExpense] = useState<any>(null);
   const [showExpenseDetails, setShowExpenseDetails] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
   
   const [newExpense, setNewExpense] = useState({
     title: "",
@@ -80,8 +82,21 @@ export default function ExpensesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/financial/expenses", newExpense);
+      const res = await api.post("/financial/expenses", newExpense);
+      const expenseId = res.id;
+
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'EXPENSE');
+          formData.append('entityId', expenseId);
+          await api.post("/attachments/upload", formData);
+        }
+      }
+
       setIsAddOpen(false);
+      setCreationFiles([]);
       loadData();
       setNewExpense({ title: "", amount: 0, category: "MAINTENANCE", propertyId: "", description: "", date: new Date().toISOString().split('T')[0] });
     } catch (err) { console.error(err); }
@@ -182,6 +197,54 @@ export default function ExpensesPage() {
                         value={newExpense.description}
                         onChange={e => setNewExpense({...newExpense, description: e.target.value})}
                       />
+                   </div>
+
+                   <div className="space-y-4 pt-2">
+                     <Label className="font-bold flex items-center gap-2">
+                       <Paperclip className="w-4 h-4 text-[#6264A7]" /> إيصال النفقة / الوصل (صور / PDF)
+                     </Label>
+                     <div className="bg-[#F5F5F5] p-6 rounded-md border border-dashed border-[#999999]">
+                       <input 
+                         type="file" 
+                         multiple 
+                         className="hidden" 
+                         ref={creationFilesInputRef}
+                         onChange={(e) => {
+                           const files = Array.from(e.target.files || []);
+                           setCreationFiles(prev => [...prev, ...files]);
+                         }}
+                         accept="image/*,application/pdf"
+                       />
+                       <div className="flex flex-col items-center justify-center text-center space-y-2">
+                         <Button 
+                           type="button" 
+                           onClick={() => creationFilesInputRef.current?.click()}
+                           variant="ghost"
+                           className="text-[#6264A7] font-bold hover:bg-white"
+                         >
+                           <Plus className="w-4 h-4 ml-1" /> إضافة وصولات
+                         </Button>
+                       </div>
+
+                       {creationFiles.length > 0 && (
+                         <div className="mt-4 space-y-2">
+                           {creationFiles.map((file, idx) => (
+                             <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-md border border-[#F0F0F0]">
+                               <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
+                               <Button 
+                                 type="button" 
+                                 variant="ghost" 
+                                 size="icon" 
+                                 onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                                 className="text-rose-500 h-7 w-7"
+                               >
+                                 <Trash2 className="w-3.5 h-3.5" />
+                               </Button>
+                             </div>
+                           ))}
+                         </div>
+                       )}
+                     </div>
                    </div>
                  </div>
                </div>

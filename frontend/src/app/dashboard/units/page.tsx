@@ -31,6 +31,8 @@ export default function UnitsPage() {
   const [selectedUnit, setSelectedUnit] = useState<any>(null);
   const [showUnitDetails, setShowUnitDetails] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -75,7 +77,7 @@ export default function UnitsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/units", {
+      const res = await api.post("/units", {
         ...form,
         monthlyRent: parseFloat(form.monthlyRent),
         floor: form.floor ? parseInt(form.floor) : undefined,
@@ -83,7 +85,20 @@ export default function UnitsPage() {
         bedrooms: form.bedrooms ? parseInt(form.bedrooms) : undefined,
         bathrooms: form.bathrooms ? parseInt(form.bathrooms) : undefined,
       });
+      const unitId = res.id;
+
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'UNIT');
+          formData.append('entityId', unitId);
+          await api.post("/attachments/upload", formData);
+        }
+      }
+
       setShowCreate(false);
+      setCreationFiles([]);
       load();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -309,6 +324,54 @@ export default function UnitsPage() {
                       <Label className="text-[10px] text-slate-600 font-black mb-1 block">الحمامات</Label>
                       <input type="number" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} className="w-full bg-transparent border-none focus:outline-none font-bold text-slate-700" />
                    </div>
+                </div>
+
+                <div className="space-y-4 pt-4">
+                  <Label className="text-slate-700 font-bold px-1 flex items-center gap-2">
+                    <Paperclip className="w-4 h-4 text-indigo-500" /> المرفقات (صور / PDF)
+                  </Label>
+                  <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
+                    <div className="flex flex-col items-center justify-center text-center space-y-3">
+                      <input 
+                        type="file" 
+                        multiple 
+                        className="hidden" 
+                        ref={creationFilesInputRef}
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          setCreationFiles(prev => [...prev, ...files]);
+                        }}
+                        accept="image/*,application/pdf"
+                      />
+                      <Button 
+                        type="button" 
+                        onClick={() => creationFilesInputRef.current?.click()}
+                        variant="ghost"
+                        className="text-indigo-600 font-bold h-10 hover:bg-white"
+                      >
+                         <Plus className="w-4 h-4 ml-1" /> إضافة ملفات للوحدة
+                      </Button>
+                    </div>
+
+                    {creationFiles.length > 0 && (
+                      <div className="mt-4 space-y-2">
+                        {creationFiles.map((file, idx) => (
+                          <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
+                            <span className="text-xs font-bold truncate text-slate-600 max-w-[200px]">{file.name}</span>
+                            <Button 
+                              type="button" 
+                              variant="ghost" 
+                              size="icon" 
+                              onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                              className="text-rose-500 h-7 w-7"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

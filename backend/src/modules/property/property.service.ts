@@ -137,24 +137,68 @@ export class PropertyService {
       if (!row.hasValues) continue;
 
       const values = row.values as any[];
-      const name = values[1]?.toString()?.trim();
-      const address = values[2]?.toString()?.trim();
-      const city = values[3]?.toString()?.trim();
-      const state = values[4]?.toString()?.trim();
-      const country = values[5]?.toString()?.trim() || 'العراق';
-      const zipCode = values[6]?.toString()?.trim();
-      const description = values[7]?.toString()?.trim();
-      const mapUrl = values[8]?.toString()?.trim();
+      
+      const getVal = (idx: number) => values[idx]?.toString()?.trim();
+      const getFloat = (idx: number) => {
+        const v = values[idx];
+        return v ? parseFloat(v.toString()) : undefined;
+      };
 
+      const name = getVal(1);
+      const address = getVal(2);
+      const city = getVal(3);
+      
       if (!name || !address || !city) {
          errors.push(`السطر ${rowNumber}: بيانات ناقصة (الاسم، العنوان، أو المدينة)`);
          continue;
       }
 
+      const dto: CreatePropertyDto = {
+        name,
+        address,
+        city,
+        state: getVal(4),
+        country: getVal(5) || 'العراق',
+        zipCode: getVal(6),
+        description: getVal(7),
+        mapUrl: getVal(8),
+        issuer: getVal(9),
+        registrationDirectorate: getVal(10),
+        formType: getVal(11),
+        governorate: getVal(12),
+        district: getVal(13),
+        subDistrict: getVal(14),
+        street: getVal(15),
+        recordNumber: getVal(16),
+        recordDate: getVal(17),
+        recordVolume: getVal(18),
+        prevRecordNumber: getVal(19),
+        prevRecordDate: getVal(20),
+        prevRecordVolume: getVal(21),
+        propertySequence: getVal(22),
+        neighborhoodName: getVal(23),
+        doorNumber: getVal(24),
+        plotNumber: getVal(25),
+        sectionNumber: getVal(26),
+        sectionName: getVal(27),
+        ownerNationality: getVal(28),
+        boundaries: getVal(29),
+        propertyGender: getVal(30),
+        propertyTypeDetailed: getVal(31),
+        contents: getVal(32),
+        easements: getVal(33),
+        areaSqm: getFloat(34),
+        areaOlk: getFloat(35),
+        areaDonum: getFloat(36),
+        registrationNature: getVal(37),
+        insuranceNotes: getVal(38),
+        deedRuling: getVal(39),
+        requestingEntity: getVal(40),
+        certificationDate: getVal(41),
+      };
+
       try {
-        await this.create({
-          name, address, city, state, country, zipCode, description, mapUrl
-        }, ownerId);
+        await this.create(dto, ownerId);
         successCount++;
       } catch (error: any) {
         errors.push(`السطر ${rowNumber}: ${error.message || 'خطأ غير معروف'}`);

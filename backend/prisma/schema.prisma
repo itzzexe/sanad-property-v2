@@ -139,6 +139,51 @@ model Property {
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
+  // General Information
+  issuer                  String?   @map("issuer")
+  registrationDirectorate String?   @map("registration_directorate")
+  formType                String?   @map("form_type")
+
+  // Current Permanent Record
+  governorate             String?   @map("governorate")
+  district                String?   @map("district")
+  subDistrict             String?   @map("sub_district")
+  street                  String?   @map("street")
+  recordNumber            String?   @map("record_number")
+  recordDate              DateTime? @map("record_date")
+  recordVolume            String?   @map("record_volume")
+
+  // Transferred From Record
+  prevRecordNumber        String?   @map("prev_record_number")
+  prevRecordDate          DateTime? @map("prev_record_date")
+  prevRecordVolume        String?   @map("prev_record_volume")
+  propertySequence        String?   @map("property_sequence")
+  neighborhoodName        String?   @map("neighborhood_name")
+  doorNumber              String?   @map("door_number")
+  plotNumber              String?   @map("plot_number")
+  sectionNumber           String?   @map("section_number")
+  sectionName             String?   @map("section_name")
+
+  // Ownership & Property Details
+  ownerNationality        String?   @map("owner_nationality")
+  boundaries              String?   @default("كما في الخارطة") @map("boundaries")
+  propertyGender          String?   @map("property_gender")
+  propertyTypeDetailed    String?   @map("property_type_detailed") 
+  contents                String?   @map("contents")
+  easements               String?   @map("easements")
+  areaSqm                 Float?    @map("area_sqm")
+  areaOlk                 Float?    @map("area_olk")
+  areaDonum               Float?    @map("area_donum")
+
+  // Registration Details
+  registrationNature      String?   @map("registration_nature")
+  insuranceNotes          String?   @map("insurance_notes")
+  deedRuling              String?   @map("deed_ruling")
+
+  // Certification
+  requestingEntity        String?   @map("requesting_entity")
+  certificationDate       DateTime? @map("certification_date")
+
   owner       User      @relation(fields: [ownerId], references: [id])
   units       Unit[]
   expenses      Expense[]

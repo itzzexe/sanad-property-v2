@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { 
   Plus, Search, FileBadge, TrendingDown, Clock, 
   History as HistoryIcon, Calendar, Info, Loader2, DollarSign,
@@ -31,6 +31,8 @@ export default function AssetsPage() {
   const [saving, setSaving] = useState(false);
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
   
   const [newAsset, setNewAsset] = useState({
     name: "",
@@ -69,8 +71,21 @@ export default function AssetsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/financial/assets", { ...newAsset, propertyId: selectedProp });
+      const res = await api.post("/financial/assets", { ...newAsset, propertyId: selectedProp });
+      const assetId = res.id;
+
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'ASSET');
+          formData.append('entityId', assetId);
+          await api.post("/attachments/upload", formData);
+        }
+      }
+
       setIsAddOpen(false);
+      setCreationFiles([]);
       loadAssets();
     } catch (err) { console.error(err); }
     finally { setSaving(false); }
@@ -246,6 +261,54 @@ export default function AssetsPage() {
                            <Label className="font-bold">العمر الإنتاجي (سنوات)</Label>
                            <Input type="number" required value={newAsset.usefulLifeYears} onChange={e => setNewAsset({...newAsset, usefulLifeYears: parseInt(e.target.value)})} className="h-11 bg-slate-50 text-slate-900 font-bold text-left font-bold" dir="ltr" />
                         </div>
+                     </div>
+
+                     <div className="space-y-4 pt-2">
+                       <Label className="font-bold flex items-center gap-2">
+                         <Paperclip className="w-4 h-4 text-[#6264A7]" /> صور ومستندات الأصل
+                       </Label>
+                       <div className="bg-[#F5F5F5] p-6 rounded-md border border-dashed border-[#D1D1D1]">
+                         <input 
+                           type="file" 
+                           multiple 
+                           className="hidden" 
+                           ref={creationFilesInputRef}
+                           onChange={(e) => {
+                             const files = Array.from(e.target.files || []);
+                             setCreationFiles(prev => [...prev, ...files]);
+                           }}
+                           accept="image/*,application/pdf"
+                         />
+                         <div className="flex flex-col items-center justify-center text-center space-y-2">
+                           <Button 
+                             type="button" 
+                             onClick={() => creationFilesInputRef.current?.click()}
+                             variant="ghost"
+                             className="text-[#6264A7] font-bold hover:bg-white"
+                           >
+                             <Plus className="w-4 h-4 ml-1" /> إضافة صور/وثائق
+                           </Button>
+                         </div>
+
+                         {creationFiles.length > 0 && (
+                           <div className="mt-4 space-y-2">
+                             {creationFiles.map((file, idx) => (
+                               <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-md border border-[#F0F0F0]">
+                                 <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
+                                 <Button 
+                                   type="button" 
+                                   variant="ghost" 
+                                   size="icon" 
+                                   onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                                   className="text-rose-500 h-7 w-7"
+                                 >
+                                   <Trash2 className="w-3.5 h-3.5" />
+                                 </Button>
+                               </div>
+                             ))}
+                           </div>
+                         )}
+                       </div>
                      </div>
                   </div>
                </div>

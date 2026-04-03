@@ -22,6 +22,8 @@ export default function TenantsPage() {
   const [selectedTenant, setSelectedTenant] = useState<any>(null);
   const [showTenantDetails, setShowTenantDetails] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
+  const [creationFiles, setCreationFiles] = useState<File[]>([]);
+  const creationFilesInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -59,8 +61,21 @@ export default function TenantsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await api.post("/tenants", form);
+      const res = await api.post("/tenants", form);
+      const tenantId = res.id;
+
+      if (creationFiles.length > 0) {
+        for (const file of creationFiles) {
+          const formData = new FormData();
+          formData.append('file', file);
+          formData.append('entityType', 'TENANT');
+          formData.append('entityId', tenantId);
+          await api.post("/attachments/upload", formData);
+        }
+      }
+
       setShowCreate(false);
+      setCreationFiles([]);
       setForm({ firstName: "", lastName: "", email: "", phone: "", idType: "بطاقة وطنية", idNumber: "", nationality: "عراقي", address: "" });
       load();
     } catch (err: any) { alert(err.message); }
@@ -237,6 +252,54 @@ export default function TenantsPage() {
                 <div className="space-y-2 text-right">
                   <Label className="text-slate-700 font-bold px-1">رقم الهوية</Label>
                   <Input value={form.idNumber} onChange={e => setForm({ ...form, idNumber: e.target.value })} className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-mono font-bold" />
+                </div>
+              </div>
+
+              <div className="px-8 space-y-4">
+                <Label className="text-slate-700 font-bold px-1 flex items-center gap-2">
+                  <Paperclip className="w-4 h-4 text-indigo-500" /> مرفقات المستأجر (هوية / صور)
+                </Label>
+                <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
+                  <input 
+                    type="file" 
+                    multiple 
+                    className="hidden" 
+                    ref={creationFilesInputRef}
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      setCreationFiles(prev => [...prev, ...files]);
+                    }}
+                    accept="image/*,application/pdf"
+                  />
+                  <div className="flex flex-col items-center justify-center text-center space-y-2">
+                    <Button 
+                      type="button" 
+                      onClick={() => creationFilesInputRef.current?.click()}
+                      variant="ghost"
+                      className="text-indigo-600 font-bold hover:bg-white"
+                    >
+                      <Plus className="w-4 h-4 ml-1" /> إضافة مستندات
+                    </Button>
+                  </div>
+
+                  {creationFiles.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {creationFiles.map((file, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
+                          <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
+                          <Button 
+                            type="button" 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
+                            className="text-rose-500 h-7 w-7"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
