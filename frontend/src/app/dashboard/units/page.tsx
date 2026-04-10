@@ -1,500 +1,430 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { useState, useEffect, useRef } from "react";
+import { 
+  DoorOpen, Plus, Search, Home, 
+  LayoutGrid, List, MoreVertical, 
+  Edit, Archive, Trash2, Eye, 
+  ChevronRight, Upload, Loader2,
+  FileText, Paperclip, MapPin, 
+  Bed, Bath, Square, Layers, Building,
+  ArrowRightLeft
+} from "lucide-react";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { useCurrency } from "@/context/currency-context";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { api } from "@/lib/api";
-import { formatCurrency, getStatusColor, cn } from "@/lib/utils";
-import { Plus, Search, DoorOpen, Loader2, Trash2, Building2, Layers, Paperclip, Eye, FileText, Layout, User, Upload } from "lucide-react";
-import { useCurrency } from "@/context/currency-context";
+import { PageHeader } from "@/components/ui/page-header";
+import { FloatingAction } from "@/components/ui/floating-action";
+import { DataTable } from "@/components/ui/data-table";
+import { 
+  Modal, 
+  ModalContent, 
+  ModalHeader, 
+  ModalTitle, 
+  ModalDescription, 
+  ModalFooter 
+} from "@/components/ui/modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/context/language-context";
 import { AttachmentManager } from "@/components/shared/attachment-manager";
-import { useRef } from "react";
 
 export default function UnitsPage() {
+  const { language, t, dir } = useLanguage();
   const { format } = useCurrency();
   const [units, setUnits] = useState<any[]>([]);
   const [properties, setProperties] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [propertyFilter, setPropertyFilter] = useState("all");
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState<any>({
-    unitNumber: "", type: "APARTMENT", monthlyRent: "", propertyId: "",
-    floor: "", area: "", bedrooms: "", bathrooms: "", currency: "IQD",
-  });
-  const [saving, setSaving] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<any>(null);
-  const [showUnitDetails, setShowUnitDetails] = useState(false);
   const [showAttachments, setShowAttachments] = useState(false);
-  const [creationFiles, setCreationFiles] = useState<File[]>([]);
-  const creationFilesInputRef = useRef<HTMLInputElement>(null);
+  const [selectedUnit, setSelectedUnit] = useState<any>(null);
   const [importing, setImporting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Form State
+  const [form, setForm] = useState({ 
+    propertyId: "", unitNumber: "", type: "APARTMENT", status: "AVAILABLE",
+    monthlyRent: 0, currency: "IQD", floor: 0, area: 0, 
+    bedrooms: 0, bathrooms: 0, description: ""
+  });
+  const [saving, setSaving] = useState(false);
 
-    setImporting(true);
-    const formData = new FormData();
-    formData.append('file', file);
+  useEffect(() => { 
+    loadProperties();
+  }, []);
 
-    try {
-      const res = await api.post("/units/import", formData);
-      alert(`تم استيراد ${res.successCount || 0} سجل بنجاح.\n\n${res.errorsCount > 0 ? `أخطاء (${res.errorsCount}):\n` + res.errors.join('\n') : ''}`);
-      load();
-    } catch (err: any) {
-      alert(err.message || "حدث خطأ أثناء رفع الملف");
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
-
-  useEffect(() => { load(); loadProperties(); }, [search]);
-  
-  async function load() {
-    try {
-      const res = await api.get(`/units?search=${search}&limit=50`);
-      setUnits(res.data || []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }
+  useEffect(() => { 
+    loadUnits(); 
+  }, [search, statusFilter, propertyFilter]);
 
   async function loadProperties() {
     try {
-      const res = await api.get("/properties?limit=100");
+      const res = await api.get('/properties?limit=100');
       setProperties(res.data || []);
     } catch (err) { console.error(err); }
   }
 
+  async function loadUnits() {
+    setLoading(true);
+    try {
+      let url = `/units?search=${search}&limit=50`;
+      if (statusFilter !== "all") url += `&status=${statusFilter}`;
+      if (propertyFilter !== "all") url += `&propertyId=${propertyFilter}`;
+      const res = await api.get(url);
+      setUnits(res.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    if (!form.propertyId) {
+      alert(language === 'ar' ? 'يرجى اختيار العقار' : 'Please select a property');
+      return;
+    }
     setSaving(true);
     try {
-      const res = await api.post("/units", {
+      await api.post("/units", {
         ...form,
-        monthlyRent: parseFloat(form.monthlyRent),
-        floor: form.floor ? parseInt(form.floor) : undefined,
-        area: form.area ? parseFloat(form.area) : undefined,
-        bedrooms: form.bedrooms ? parseInt(form.bedrooms) : undefined,
-        bathrooms: form.bathrooms ? parseInt(form.bathrooms) : undefined,
+        monthlyRent: Number(form.monthlyRent),
+        floor: Number(form.floor),
+        area: Number(form.area),
+        bedrooms: Number(form.bedrooms),
+        bathrooms: Number(form.bathrooms),
       });
-      const unitId = res.id;
-
-      if (creationFiles.length > 0) {
-        for (const file of creationFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('entityType', 'UNIT');
-          formData.append('entityId', unitId);
-          await api.post("/attachments/upload", formData);
-        }
-      }
-
       setShowCreate(false);
-      setCreationFiles([]);
-      load();
-    } catch (err: any) { alert(err.message); }
-    finally { setSaving(false); }
+      setForm({
+        propertyId: "", unitNumber: "", type: "APARTMENT", status: "AVAILABLE",
+        monthlyRent: 0, currency: "IQD", floor: 0, area: 0, 
+        bedrooms: 0, bathrooms: 0, description: ""
+      });
+      loadUnits();
+    } catch (err: any) {
+      alert(err.response?.data?.message || err.message);
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف هذه الوحدة؟")) return;
-    try { await api.delete(`/units/${id}`); load(); }
-    catch (err: any) { alert(err.message); }
+    if (!confirm(language === 'ar' ? "هل أنت متأكد من حذف هذه الوحدة؟" : "Are you sure you want to delete this unit?")) return;
+    try {
+      await api.delete(`/units/${id}`);
+      loadUnits();
+    } catch (err: any) {
+      alert(err.message);
+    }
   }
 
-  const translateType = (type: string) => {
-    const types: any = {
-      APARTMENT: "شقة سكنية",
-      SHOP: "محل تجاري",
-      OFFICE: "مكتب إداري",
-      VILLA: "فيلا ملكية",
-      WAREHOUSE: "مخزن لوجستي",
-    };
-    return types[type] || type;
-  };
-
-  const translateStatus = (status: string) => {
-    const statuses: any = {
-      AVAILABLE: "شاغرة",
-      RENTED: "مؤجرة",
-      MAINTENANCE: "صيانة",
-    };
-    return statuses[status] || status;
-  };
+  const columns = [
+    { header: t('unit_number'), accessorKey: "unitNumber", cell: (item: any) => (
+      <div className={cn("flex items-center gap-3", language === 'ar' ? "flex-row-reverse" : "")}>
+        <div className="w-8 h-8 rounded bg-primary-50 dark:bg-primary-900/10 flex items-center justify-center text-primary-500">
+          <DoorOpen className="w-4 h-4" />
+        </div>
+        <span className="font-bold text-neutral-900 dark:text-neutral-50">{item.unitNumber}</span>
+      </div>
+    )},
+    { header: t('property'), accessorKey: "property", cell: (item: any) => (
+      <div className="flex flex-col">
+        <span className="text-sm font-bold text-neutral-900 dark:text-neutral-50">{item.property?.name}</span>
+        <span className="text-[10px] text-neutral-400">{item.property?.address}</span>
+      </div>
+    )},
+    { header: t('type'), accessorKey: "type", cell: (item: any) => (
+      <Badge variant="neutral" size="sm">{t(item.type) || item.type}</Badge>
+    )},
+    { header: t('status'), accessorKey: "status", cell: (item: any) => (
+      <Badge 
+        variant={item.status === 'AVAILABLE' ? 'success' : item.status === 'RENTED' ? 'neutral' : 'warning'} 
+        size="sm"
+      >
+        {t(item.status) || item.status}
+      </Badge>
+    )},
+    { header: t('rent'), accessorKey: "monthlyRent", cell: (item: any) => (
+      <span className="font-black text-neutral-900 dark:text-neutral-50">{format(item.monthlyRent, item.currency)}</span>
+    )},
+    { header: t('actions'), accessorKey: "actions", cell: (item: any) => (
+      <div className="flex items-center gap-1">
+         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
+            setSelectedUnit(item);
+            setShowAttachments(true);
+         }}>
+           <Paperclip className="w-4 h-4" />
+         </Button>
+         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(item.id)}>
+           <Trash2 className="w-4 h-4 text-danger" />
+         </Button>
+      </div>
+    )},
+  ];
 
   return (
-    <div className="space-y-10 page-enter p-2 md:p-6 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-        <div>
-          <h1 className="text-5xl font-black tracking-tight text-slate-900 mb-2 leading-tight">
-            إدارة <span className="text-gradient-indigo">الوحدات</span>
-          </h1>
-          <p className="text-slate-700 text-lg font-medium flex items-center gap-2">
-            <DoorOpen className="w-5 h-5 text-indigo-500" />
-            تصنيف وتنظيم الوحدات العقارية ضمن الصروح السكنية والتجارية
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImport} />
-          <Button disabled={importing} onClick={() => fileInputRef.current?.click()} variant="outline" className="border-indigo-600 text-indigo-600 hover:bg-indigo-50 font-bold h-14 px-6 rounded-2xl gap-2 transition-all">
-            {importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />} رفع إكسل
-          </Button>
-          <Button onClick={() => setShowCreate(true)} className="bg-indigo-600 text-white hover:bg-indigo-700 font-bold h-14 px-8 rounded-2xl shadow-lg shadow-indigo-600/20 gap-3 border-none hover:scale-105 transition-all">
-            <Plus className="w-5 h-5" /> إضافة وحدة جديدة
-          </Button>
-        </div>
-      </div>
+    <div className={cn("space-y-8 pb-12", language === 'ar' ? "font-arabic text-right" : "")} dir={dir}>
+      <PageHeader 
+        title={t('units_management') || (language === 'ar' ? "إدارة الوحدات" : "Units Management")}
+        description={t('units_description') || (language === 'ar' ? "عرض وإدارة جميع الوحدات السكنية والتجارية" : "View and manage all residential and commercial units")}
+        actions={
+          <div className="flex items-center gap-3">
+             <Button size="sm" onClick={() => setShowCreate(true)} className="bg-primary-600">
+                <Plus className="w-4 h-4 mr-2" /> {t('add_unit') || (language === 'ar' ? "إضافة وحدة" : "Add Unit")}
+             </Button>
+          </div>
+        }
+      />
 
-      <div className="flex flex-col lg:flex-row gap-6 items-end">
-        <div className="relative flex-1 group">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
-          <input 
-            placeholder="بحث عن وحدة برقمها أو نوعها..." 
-            className="w-full pr-12 h-14 bg-white border border-slate-100 shadow-premium rounded-2xl text-lg font-bold placeholder:text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all font-bold" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
+      <Card noPadding className="shadow-sm">
+        <div className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+          <div className="flex flex-1 flex-col md:flex-row gap-4 w-full">
+            <div className="relative w-full md:w-80">
+               <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400", language === 'ar' ? "right-3" : "left-3")} />
+               <Input 
+                 placeholder={t('search_units') || (language === 'ar' ? "بحث في الوحدات..." : "Search units...")}
+                 className={cn("h-10", language === 'ar' ? "pr-10" : "pl-10")} 
+                 value={search}
+                 onChange={e => setSearch(e.target.value)}
+               />
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter} dir={dir}>
+              <SelectTrigger className="w-full md:w-40 h-10 font-medium">
+                <SelectValue placeholder={t('status')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('all')}</SelectItem>
+                <SelectItem value="AVAILABLE">{t('AVAILABLE')}</SelectItem>
+                <SelectItem value="RENTED">{t('RENTED')}</SelectItem>
+                <SelectItem value="MAINTENANCE">{t('MAINTENANCE')}</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={propertyFilter} onValueChange={setPropertyFilter} dir={dir}>
+              <SelectTrigger className="w-full md:w-56 h-10 font-medium">
+                <SelectValue placeholder={t('property')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">{t('all_properties') || (language === 'ar' ? "جميع العقارات" : "All Properties")}</SelectItem>
+                {properties.map(p => (
+                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
+             <button onClick={() => setViewMode("grid")} className={cn("p-1.5 rounded-md transition-all", viewMode === "grid" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400")}><LayoutGrid className="w-4 h-4" /></button>
+             <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400")}><List className="w-4 h-4" /></button>
+          </div>
         </div>
-      </div>
+      </Card>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
-          <p className="font-bold text-slate-600 animate-pulse">جاري جلب الوحدات المتاحة...</p>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+           {Array.from({ length: 6 }).map((_, i) => (
+             <Card key={i} className="h-64 animate-pulse bg-neutral-50 dark:bg-neutral-900/50" />
+           ))}
         </div>
-      ) : units.length === 0 ? (
-        <Card className="py-24 text-center border-none shadow-premium bg-white rounded-[40px]">
-          <DoorOpen className="w-20 h-20 mx-auto text-slate-600 mb-6" />
-          <h3 className="text-2xl font-black text-slate-900">لا توجد وحدات مسجلة</h3>
-          <p className="text-slate-600 mt-2 font-medium">ابدأ بربط الوحدات العقارية بمشاريعك الكبرى.</p>
-        </Card>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          {units.map((unit) => (
+            <Card key={unit.id} noPadding className="overflow-hidden group hover:shadow-xl transition-all duration-300">
+              <div className={cn(
+                "h-2 bg-primary-500",
+                unit.status === 'AVAILABLE' ? 'bg-emerald-500' : unit.status === 'RENTED' ? 'bg-indigo-500' : 'bg-amber-500'
+              )} />
+              <div className="p-5 space-y-4">
+                 <div className="flex items-start justify-between">
+                    <div>
+                       <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-50 group-hover:text-primary-500 transition-colors">
+                          {t('unit') || (language === 'ar' ? 'وحدة' : 'Unit')} {unit.unitNumber}
+                       </h3>
+                       <p className="flex items-center text-xs text-neutral-400 mt-1 font-bold">
+                          <Building className="w-3 h-3 mx-1" /> {unit.property?.name}
+                       </p>
+                    </div>
+                    <Badge variant={unit.status === 'AVAILABLE' ? 'success' : 'neutral'} size="sm">
+                       {t(unit.status) || unit.status}
+                    </Badge>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-3 pb-2">
+                    <div className="flex items-center gap-2 text-neutral-500">
+                       <Bed className="w-4 h-4" /> <span className="text-sm font-bold">{unit.bedrooms || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-neutral-500">
+                       <Bath className="w-4 h-4" /> <span className="text-sm font-bold">{unit.bathrooms || 0}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-neutral-500">
+                       <Square className="w-4 h-4" /> <span className="text-xs font-bold">{unit.area || 0} m²</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-neutral-500">
+                       <Layers className="w-4 h-4" /> <span className="text-xs font-bold">{t('floor')} {unit.floor}</span>
+                    </div>
+                 </div>
+
+                 <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
+                    <div>
+                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t('monthly_rent')}</p>
+                       <p className="text-lg font-black text-neutral-900 dark:text-neutral-50">{format(unit.monthlyRent, unit.currency)}</p>
+                    </div>
+                    <DropdownMenu dir={dir}>
+                       <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                             <MoreVertical className="w-4 h-4" />
+                          </Button>
+                       </DropdownMenuTrigger>
+                       <DropdownMenuContent align={language === 'ar' ? "start" : "end"}>
+                          <DropdownMenuItem className="gap-2" onClick={() => {
+                             setSelectedUnit(unit);
+                             setShowAttachments(true);
+                          }}>
+                            <Paperclip className="w-4 h-4" /> {t('attachments')}
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-danger gap-2" onClick={() => handleDelete(unit.id)}>
+                             <Trash2 className="w-4 h-4" /> {t('delete')}
+                          </DropdownMenuItem>
+                       </DropdownMenuContent>
+                    </DropdownMenu>
+                 </div>
+              </div>
+            </Card>
+          ))}
+        </div>
       ) : (
-        <Card className="border-none shadow-premium bg-white rounded-[32px] overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-50/50">
-              <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="text-right py-6 text-slate-900 font-black">رقم الوحدة</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black">العقار التابع</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black">النوع</TableHead>
-                <TableHead className="text-center py-6 text-slate-900 font-black">الحالة</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black">الإيجار الشهري</TableHead>
-                <TableHead className="text-left py-6 text-slate-900 font-black pl-8">الإجراءات</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {units.map((unit: any) => (
-                <TableRow key={unit.id} className="hover:bg-slate-50/40 transition-colors border-slate-50 group">
-                  <TableCell className="py-5">
-                    <div className="flex items-center gap-3 font-black text-slate-900 text-lg">
-                       <div className="w-1.5 h-7 bg-indigo-500 rounded-full" />
-                       {unit.unitNumber}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-bold text-slate-700">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-3.5 h-3.5 text-slate-600" />
-                      {unit.property?.name || "—"}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-none font-bold px-3 py-1 rounded-lg">
-                      {translateType(unit.type)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className={cn(
-                      "font-black px-4 h-8 rounded-xl border-none shadow-none",
-                      unit.status === 'AVAILABLE' ? "bg-emerald-50 text-emerald-600" :
-                      unit.status === 'RENTED' ? "bg-indigo-600 text-white" : "bg-amber-50 text-amber-600"
-                    )}>
-                      {translateStatus(unit.status)}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="font-black text-slate-900 text-base">{format(unit.monthlyRent, unit.currency)}</TableCell>
-                  <TableCell className="pl-8 text-left">
-                    <div className="flex items-center justify-end gap-2">
-                       <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600" onClick={() => {
-                          setSelectedUnit(unit);
-                          setShowUnitDetails(true);
-                        }}>
-                        <Eye className="w-4.5 h-4.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 transition-colors" onClick={() => {
-                        setSelectedUnit(unit);
-                        setShowAttachments(true);
-                      }}>
-                        <Paperclip className="w-4.5 h-4.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-colors" onClick={() => handleDelete(unit.id)}>
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+        <DataTable columns={columns} data={units} />
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl bg-white rounded-[32px] overflow-hidden p-0" dir="rtl">
+      {/* Mobile FAB */}
+      <FloatingAction href="#" label={t('add_unit')} />
+
+      {/* Unit Creation Modal */}
+      <Modal open={showCreate} onOpenChange={setShowCreate}>
+        <ModalContent className="sm:max-w-2xl bg-white dark:bg-neutral-900 border-none rounded-[32px] p-0" dir={dir}>
           <form onSubmit={handleCreate}>
             <div className="p-8 space-y-6">
-              <DialogHeader className="text-right">
-                <DialogTitle className="text-3xl font-black text-slate-900 leading-tight">إضافة وحدة جديدة</DialogTitle>
-                <DialogDescription className="text-slate-700 font-bold">تحديد تفاصيل الوحدة لربطها بالمنظومة العقارية</DialogDescription>
-              </DialogHeader>
+              <ModalHeader>
+                <ModalTitle className="text-3xl font-black text-neutral-900 dark:text-neutral-50">{t('add_unit')}</ModalTitle>
+                <ModalDescription className="text-base text-neutral-500">{t('units_description')}</ModalDescription>
+              </ModalHeader>
 
-              <div className="space-y-5 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-700 font-bold px-1">العقار التابع له</Label>
-                  <Select value={form.propertyId} onValueChange={v => setForm({ ...form, propertyId: v })}>
-                    <SelectTrigger className="h-14 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10 transition-all">
-                      <SelectValue placeholder="اختر العقار المستهدف" />
-                    </SelectTrigger>
-                    <SelectContent dir="rtl" className="bg-white border-slate-100 rounded-xl overflow-hidden shadow-xl">
-                      {properties.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id} className="font-bold py-3">
-                          <div className="flex items-center gap-2">
-                            <Building2 className="w-4 h-4 text-slate-600" />
-                            {p.name}
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 font-bold px-1">رقم الوحدة/الاسم</Label>
-                    <Input required value={form.unitNumber} onChange={e => setForm({ ...form, unitNumber: e.target.value })} placeholder="مثال: شقة 104" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10" />
-                  </div>
-                  <div className="space-y-2 text-right">
-                    <Label className="text-slate-700 font-bold px-1">نوع الوحدة</Label>
-                    <Select value={form.type} onValueChange={v => setForm({ ...form, type: v })}>
-                      <SelectTrigger className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent dir="rtl" className="bg-white border-slate-100 rounded-xl">
-                        <SelectItem value="APARTMENT">شقة سكنية</SelectItem>
-                        <SelectItem value="SHOP">محل تجاري</SelectItem>
-                        <SelectItem value="OFFICE">مكتب إداري</SelectItem>
-                        <SelectItem value="VILLA">فيلا ملكية</SelectItem>
-                        <SelectItem value="WAREHOUSE">مخزن لوجستي</SelectItem>
-                      </SelectContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <div className="space-y-2">
+                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('property')} <span className="text-danger">*</span></Label>
+                    <Select value={form.propertyId} onValueChange={val => setForm({...form, propertyId: val})} dir={dir}>
+                       <SelectTrigger className="h-12 rounded-xl border-neutral-100 font-bold">
+                          <SelectValue placeholder={t('select_property')} />
+                       </SelectTrigger>
+                       <SelectContent>
+                          {properties.map(p => (
+                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                          ))}
+                       </SelectContent>
                     </Select>
-                  </div>
-                </div>
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('unit_number')} <span className="text-danger">*</span></Label>
+                    <Input required value={form.unitNumber} onChange={e => setForm({...form, unitNumber: e.target.value})} className="h-12 rounded-xl font-bold" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('type')}</Label>
+                    <Select value={form.type} onValueChange={val => setForm({...form, type: val})} dir={dir}>
+                       <SelectTrigger className="h-12 rounded-xl font-bold">
+                          <SelectValue />
+                       </SelectTrigger>
+                       <SelectContent>
+                          <SelectItem value="APARTMENT">{t('APARTMENT')}</SelectItem>
+                          <SelectItem value="COMMERCIAL">{t('COMMERCIAL')}</SelectItem>
+                          <SelectItem value="HOUSE">{t('HOUSE')}</SelectItem>
+                          <SelectItem value="OFFICE">{t('OFFICE')}</SelectItem>
+                       </SelectContent>
+                    </Select>
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('rent')} ({form.currency}) <span className="text-danger">*</span></Label>
+                    <Input required type="number" value={form.monthlyRent} onChange={e => setForm({...form, monthlyRent: Number(e.target.value)})} className="h-12 rounded-xl font-black text-lg" />
+                 </div>
+              </div>
 
-                <div className="grid grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label className="text-slate-700 font-bold px-1">الإيجار الشهري</Label>
-                    <div className="relative">
-                       <Input required type="number" value={form.monthlyRent} onChange={e => setForm({ ...form, monthlyRent: e.target.value })} className="h-12 bg-slate-50/50 border-slate-100 rounded-xl pl-14 font-black text-lg focus:ring-indigo-500/10" />
-                       <div className="absolute left-4 top-1/2 -translate-y-1/2 text-[10px] bg-white px-2 py-0.5 rounded-lg border text-indigo-600 font-black uppercase tracking-widest">{form.currency || 'IQD'}</div>
-                    </div>
-                  </div>
-                  <div className="space-y-2 text-right">
-                    <Label className="text-slate-700 font-bold px-1">الطابق</Label>
-                    <Input type="number" value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} placeholder="الطابق" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold text-center focus:ring-indigo-500/10" />
-                  </div>
-                </div>
+              <div className="grid grid-cols-4 gap-4">
+                 <div className="space-y-2">
+                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('floor')}</Label>
+                    <Input type="number" value={form.floor} onChange={e => setForm({...form, floor: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('area')} (m²)</Label>
+                    <Input type="number" value={form.area} onChange={e => setForm({...form, area: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('bedrooms')}</Label>
+                    <Input type="number" value={form.bedrooms} onChange={e => setForm({...form, bedrooms: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
+                 </div>
+                 <div className="space-y-2">
+                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('bathrooms')}</Label>
+                    <Input type="number" value={form.bathrooms} onChange={e => setForm({...form, bathrooms: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
+                 </div>
+              </div>
 
-                <div className="grid grid-cols-3 gap-4">
-                   <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                      <Label className="text-[10px] text-slate-600 font-black mb-1 block">المساحة</Label>
-                      <input type="number" value={form.area} onChange={e => setForm({ ...form, area: e.target.value })} className="w-full bg-transparent border-none focus:outline-none font-bold text-slate-700" placeholder="م²" />
-                   </div>
-                   <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                      <Label className="text-[10px] text-slate-600 font-black mb-1 block">الغرف</Label>
-                      <input type="number" value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: e.target.value })} className="w-full bg-transparent border-none focus:outline-none font-bold text-slate-700" />
-                   </div>
-                   <div className="p-3 bg-slate-50/50 rounded-xl border border-slate-100">
-                      <Label className="text-[10px] text-slate-600 font-black mb-1 block">الحمامات</Label>
-                      <input type="number" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: e.target.value })} className="w-full bg-transparent border-none focus:outline-none font-bold text-slate-700" />
-                   </div>
-                </div>
-
-                <div className="space-y-4 pt-4">
-                  <Label className="text-slate-700 font-bold px-1 flex items-center gap-2">
-                    <Paperclip className="w-4 h-4 text-indigo-500" /> المرفقات (صور / PDF)
-                  </Label>
-                  <div className="bg-slate-50 p-6 rounded-2xl border border-dashed border-slate-200">
-                    <div className="flex flex-col items-center justify-center text-center space-y-3">
-                      <input 
-                        type="file" 
-                        multiple 
-                        className="hidden" 
-                        ref={creationFilesInputRef}
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          setCreationFiles(prev => [...prev, ...files]);
-                        }}
-                        accept="image/*,application/pdf"
-                      />
-                      <Button 
-                        type="button" 
-                        onClick={() => creationFilesInputRef.current?.click()}
-                        variant="ghost"
-                        className="text-indigo-600 font-bold h-10 hover:bg-white"
-                      >
-                         <Plus className="w-4 h-4 ml-1" /> إضافة ملفات للوحدة
-                      </Button>
-                    </div>
-
-                    {creationFiles.length > 0 && (
-                      <div className="mt-4 space-y-2">
-                        {creationFiles.map((file, idx) => (
-                          <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-xl border border-slate-100">
-                            <span className="text-xs font-bold truncate text-slate-600 max-w-[200px]">{file.name}</span>
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="icon" 
-                              onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
-                              className="text-rose-500 h-7 w-7"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <div className="space-y-2">
+                 <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('description')}</Label>
+                 <Input value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-12 rounded-xl" />
               </div>
             </div>
 
-            <div className="p-8 bg-slate-50 flex gap-4 mt-4">
-              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-600 hover:bg-slate-100 transition-colors">إلغاء</Button>
-              <Button type="submit" disabled={saving} className="flex-1 h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black shadow-lg shadow-indigo-600/20">
-                {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-                إنشاء الوحدة
-              </Button>
-            </div>
+            <ModalFooter className="p-8 bg-neutral-100 dark:bg-neutral-800/50 gap-4 rounded-b-[32px]">
+               <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="h-12 rounded-xl px-8 font-bold text-neutral-500">{t('cancel')}</Button>
+               <Button type="submit" isLoading={saving} className="h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl px-12 font-black shadow-lg shadow-primary-600/20">
+                 {t('add_unit')}
+               </Button>
+            </ModalFooter>
           </form>
-        </DialogContent>
-      </Dialog>
+        </ModalContent>
+      </Modal>
 
-      {/* Unit Details Dialog */}
-      <Dialog open={showUnitDetails} onOpenChange={setShowUnitDetails}>
-        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl bg-white rounded-[32px] overflow-hidden p-0" dir="rtl">
-           <div className="p-8 space-y-8">
-              <DialogHeader className="text-right">
-                <div className="flex items-center gap-4">
-                   <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-                     <DoorOpen className="w-8 h-8" />
-                   </div>
-                   <div>
-                     <DialogTitle className="text-3xl font-black text-slate-900 leading-tight">تفاصيل الوحدة العقارية</DialogTitle>
-                     <p className="text-indigo-600 font-black text-sm">{selectedUnit?.property?.name} – {selectedUnit?.unitNumber}</p>
-                   </div>
-                </div>
-              </DialogHeader>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-500 font-black mb-1 uppercase">رقم الوحدة</p>
-                    <p className="text-lg font-black text-slate-900">{selectedUnit?.unitNumber}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-500 font-black mb-1 uppercase">الحالة</p>
-                    <Badge className={cn(
-                      "font-black text-[10px] rounded-lg border-none shadow-none",
-                      selectedUnit?.status === 'AVAILABLE' ? "bg-emerald-50 text-emerald-600" : "bg-indigo-50 text-indigo-600"
-                    )}>{translateStatus(selectedUnit?.status)}</Badge>
-                 </div>
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-500 font-black mb-1 uppercase">الطابق</p>
-                    <p className="text-lg font-black text-slate-900">{selectedUnit?.floor || '0'}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-                    <p className="text-[10px] text-slate-500 font-black mb-1 uppercase">المساحة</p>
-                    <p className="text-lg font-black text-slate-900">{selectedUnit?.area || '—'} م²</p>
-                 </div>
-              </div>
-
-              <div className="space-y-4">
-                  <div className="flex items-center justify-between p-5 bg-white rounded-3xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50/50">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-emerald-50 flex items-center justify-center text-emerald-600">
-                           <Layout className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-slate-800">نوع الاستخدام:</span>
-                     </div>
-                     <span className="font-black text-slate-900">{translateType(selectedUnit?.type)}</span>
-                  </div>
-                  
-                  <div className="flex items-center justify-between p-5 bg-white rounded-3xl border border-slate-100 shadow-sm transition-all hover:bg-slate-50/50">
-                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600">
-                           <FileText className="w-5 h-5" />
-                        </div>
-                        <span className="font-bold text-slate-800">قيمة الإيجار:</span>
-                     </div>
-                     <span className="font-black text-indigo-600 text-lg">{format(selectedUnit?.monthlyRent, selectedUnit?.currency)} / شهرياً</span>
-                  </div>
-
-                  {selectedUnit?.status === 'RENTED' && (
-                    <div className="p-5 bg-emerald-50/30 rounded-3xl border border-emerald-100/50">
-                       <p className="text-[10px] text-emerald-600 font-black uppercase mb-1 flex items-center gap-1">
-                          <User className="w-3 h-3" /> حالة الإشغال
-                       </p>
-                       <p className="font-bold text-slate-900">الوحدة مشغولة حالياً بموجب عقد إيجار فعال.</p>
-                    </div>
-                  )}
-              </div>
-           </div>
-           
-           <div className="p-8 bg-slate-50 flex gap-4">
-              <Button variant="ghost" onClick={() => setShowUnitDetails(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-600 hover:bg-slate-200">إغلاق</Button>
-              <Button className="flex-1 h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">
-                <FileText className="w-5 h-5" /> استخراج بطاقة الوحدة
-              </Button>
-           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Attachments Dialog */}
-      <Dialog open={showAttachments} onOpenChange={setShowAttachments}>
-        <DialogContent className="sm:max-w-[700px] border-none shadow-2xl bg-white rounded-[32px] p-8" dir="rtl">
-          <DialogHeader className="text-right mb-4">
-            <DialogTitle className="text-2xl font-black text-slate-900 leading-tight flex items-center gap-3">
+      {/* Attachments Modal */}
+      <Modal open={showAttachments} onOpenChange={setShowAttachments}>
+        <ModalContent className="sm:max-w-2xl bg-white dark:bg-neutral-900 border-none rounded-[32px] p-8" dir={dir}>
+          <ModalHeader className="mb-6">
+            <ModalTitle className="text-2xl font-black flex items-center gap-2">
               <Paperclip className="w-6 h-6 text-indigo-600" />
-              مرفقات الوحدة: {selectedUnit?.unitNumber}
-            </DialogTitle>
-          </DialogHeader>
+              {t('unit_attachments') || (language === 'ar' ? 'مرفقات الوحدة' : 'Unit Attachments')}: {selectedUnit?.unitNumber}
+            </ModalTitle>
+          </ModalHeader>
           
           {selectedUnit && (
             <AttachmentManager 
               entityType="UNIT" 
               entityId={selectedUnit.id} 
-              title="وثائق الوحدة وصورها"
+              title={t('attachments')}
             />
           )}
 
           <div className="mt-8 flex justify-end">
-            <Button 
-              type="button"
-              onClick={() => setShowAttachments(false)} 
-              className="bg-slate-100 text-slate-900 hover:bg-slate-200 font-bold px-8 rounded-xl"
-            >
-              إغلاق
-            </Button>
+            <Button onClick={() => setShowAttachments(false)} className="rounded-xl px-8 font-bold">{t('close') || (language === 'ar' ? 'إغلاق' : 'Close')}</Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

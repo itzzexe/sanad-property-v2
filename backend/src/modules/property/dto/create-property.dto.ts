@@ -44,30 +44,25 @@ export class CreatePropertyDto {
   @IsString()
   mapUrl?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  issuer?: string;
+  issuer: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  registrationDirectorate?: string;
+  registrationDirectorate: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  formType?: string;
+  formType: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  governorate?: string;
+  governorate: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  district?: string;
+  district: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -79,45 +74,37 @@ export class CreatePropertyDto {
   @IsString()
   street?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  recordNumber?: string;
+  recordNumber: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  recordDate?: string;
+  recordDate: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  recordVolume?: string;
+  recordVolume: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  prevRecordNumber?: string;
+  prevRecordNumber: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  prevRecordDate?: string;
+  prevRecordDate: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  prevRecordVolume?: string;
+  prevRecordVolume: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  propertySequence?: string;
+  propertySequence: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  neighborhoodName?: string;
+  neighborhoodName: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -139,25 +126,22 @@ export class CreatePropertyDto {
   @IsString()
   sectionName?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  ownerNationality?: string;
+  ownerNationality: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   boundaries?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  propertyGender?: string;
+  propertyGender: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  propertyTypeDetailed?: string;
+  propertyTypeDetailed: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -169,10 +153,9 @@ export class CreatePropertyDto {
   @IsString()
   easements?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsNumber()
-  areaSqm?: number;
+  areaSqm: number;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -184,10 +167,9 @@ export class CreatePropertyDto {
   @IsNumber()
   areaDonum?: number;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  registrationNature?: string;
+  registrationNature: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -199,13 +181,15 @@ export class CreatePropertyDto {
   @IsString()
   deedRuling?: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  requestingEntity?: string;
+  requestingEntity: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  certificationDate?: string;
+  certificationDate: string;
+
+  @ApiProperty()
+  @IsString()
+  seals: string;
 }

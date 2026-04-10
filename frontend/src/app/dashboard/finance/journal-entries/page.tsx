@@ -2,120 +2,256 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { 
+  Plus, Search, Filter, RotateCcw, 
+  MoreVertical, Eye, Share2, Trash2, 
+  CheckCircle2, AlertCircle, FileText
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import { DataTable } from "@/components/ui/data-table";
+import { FloatingAction } from "@/components/ui/floating-action";
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from "@/components/ui/select";
 import { financeApi } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
-import { Plus, Loader2, Search, FileEdit } from "lucide-react";
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "bg-yellow-50 text-yellow-700 border-yellow-200",
-  POSTED: "bg-emerald-50 text-emerald-700 border-emerald-200",
-  VOIDED: "bg-red-50 text-red-600 border-red-200",
-};
-
-const SOURCE_COLORS: Record<string, string> = {
-  MANUAL: "bg-blue-50 text-blue-700",
-  PAYMENT: "bg-emerald-50 text-emerald-700",
-  INVOICE: "bg-purple-50 text-purple-700",
-  CLOSING: "bg-amber-50 text-amber-700",
-};
+import { useCurrency } from "@/context/currency-context";
 
 export default function JournalEntriesPage() {
+  const { format } = useCurrency();
   const [entries, setEntries] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ status: '', sourceType: '' });
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "all",
+    sourceType: "all",
+    startDate: "",
+    endDate: "",
+  });
 
   useEffect(() => {
-    financeApi.getJournalEntries(filter).then((res) => {
-      setEntries(Array.isArray(res) ? res : res.data || []);
-    }).catch(console.error).finally(() => setLoading(false));
-  }, [filter]);
+    loadEntries();
+  }, [filters]);
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-[40vh]">
-      <Loader2 className="w-8 h-8 text-[#6264A7] animate-spin" />
-    </div>
-  );
+  const loadEntries = async () => {
+    setLoading(true);
+    try {
+      const res = await financeApi.getJournalEntries({
+        status: filters.status === 'all' ? undefined : filters.status,
+        sourceType: filters.sourceType === 'all' ? undefined : filters.sourceType,
+        startDate: filters.startDate || undefined,
+        endDate: filters.endDate || undefined,
+      });
+      setEntries(Array.isArray(res) ? res : res.data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetFilters = () => {
+    setFilters({
+      search: "",
+      status: "all",
+      sourceType: "all",
+      startDate: "",
+      endDate: "",
+    });
+  };
+
+  const columns = [
+    { 
+      header: "Entry #", 
+      accessorKey: "entryNumber",
+      cell: (item: any) => (
+        <Link 
+          href={`/dashboard/finance/journal-entries/${item.id}`}
+          className="font-mono font-bold text-primary-600 hover:text-primary-700 hover:underline"
+        >
+          {item.entryNumber}
+        </Link>
+      )
+    },
+    { 
+      header: "Date", 
+      accessorKey: "date",
+      cell: (item: any) => (
+        <span className="text-neutral-500 text-xs">
+          {new Date(item.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}
+        </span>
+      )
+    },
+    { header: "Description", accessorKey: "description" },
+    { 
+      header: "Source", 
+      accessorKey: "sourceType",
+      cell: (item: any) => (
+        <Badge 
+          variant="neutral" 
+          size="sm"
+          className={cn(
+            "text-[10px] uppercase font-bold",
+            item.sourceType === 'PAYMENT' && "bg-emerald-50 text-emerald-600",
+            item.sourceType === 'INVOICE' && "bg-blue-50 text-blue-600",
+            item.sourceType === 'MANUAL' && "bg-neutral-100 text-neutral-600"
+          )}
+        >
+          {item.sourceType}
+        </Badge>
+      )
+    },
+    { 
+      header: "Debits", 
+      accessorKey: "totalDebit",
+      cell: (item: any) => {
+        const total = (item.lines || []).reduce((sum: number, line: any) => sum + Number(line.debit), 0);
+        return <span className="font-mono font-bold text-right block">{format(total)}</span>;
+      }
+    },
+    { 
+      header: "Credits", 
+      accessorKey: "totalCredit",
+      cell: (item: any) => {
+        const total = (item.lines || []).reduce((sum: number, line: any) => sum + Number(line.credit), 0);
+        return <span className="font-mono font-medium text-neutral-400 text-right block">{format(total)}</span>;
+      }
+    },
+    { 
+      header: "Status", 
+      accessorKey: "status",
+      cell: (item: any) => (
+        <Badge 
+          variant={item.status === 'POSTED' ? 'success' : item.status === 'DRAFT' ? 'neutral' : 'warning'} 
+          size="sm"
+        >
+          {item.status}
+        </Badge>
+      )
+    },
+    { 
+      header: "Actions", 
+      accessorKey: "actions",
+      cell: (item: any) => (
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <MoreVertical className="w-4 h-4" />
+        </Button>
+      )
+    },
+  ];
+
+  const stats = {
+    posted: entries.filter(e => e.status === 'POSTED').length,
+    draft: entries.filter(e => e.status === 'DRAFT').length,
+    thisMonth: entries.length, 
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-black text-[#242424]">القيود <span className="text-[#6264A7]">اليومية</span></h1>
-        <Link href="/dashboard/finance/journal-entries/new">
-          <Button className="bg-[#6264A7] hover:bg-[#5254A0] text-white text-xs font-bold gap-1.5">
-            <Plus className="w-3.5 h-3.5" /> قيد جديد
-          </Button>
-        </Link>
+    <div className="space-y-8 pb-12">
+      <PageHeader 
+        title="Journal Entries"
+        description="General Ledger — manage and review all financial transactions across the system."
+        actions={
+          <Link href="/dashboard/finance/journal-entries/new">
+            <Button size="sm">
+              <Plus className="w-4 h-4 mr-2" /> New Entry
+            </Button>
+          </Link>
+        }
+      />
+
+      {/* Summary Strip */}
+      <div className="flex flex-wrap gap-3">
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-accent-50 text-accent-600 rounded-full text-xs font-bold border border-accent-400/20">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          Posted Entries: {stats.posted}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-50 text-amber-700 rounded-full text-xs font-bold border border-amber-400/20">
+          <FileText className="w-3.5 h-3.5" />
+          Draft Entries: {stats.draft}
+        </div>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-neutral-100 text-neutral-600 rounded-full text-xs font-bold border border-neutral-200">
+          <RotateCcw className="w-3.5 h-3.5" />
+          This Month: {stats.thisMonth} entries
+        </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <select
-          className="text-xs border border-[#999999] rounded-md px-3 py-2 bg-white font-bold text-[#242424]"
-          value={filter.status}
-          onChange={(e) => setFilter(p => ({ ...p, status: e.target.value }))}
-        >
-          <option value="">كل الحالات</option>
-          <option value="DRAFT">مسودة</option>
-          <option value="POSTED">مرحّل</option>
-          <option value="VOIDED">ملغي</option>
-        </select>
-        <select
-          className="text-xs border border-[#999999] rounded-md px-3 py-2 bg-white font-bold text-[#242424]"
-          value={filter.sourceType}
-          onChange={(e) => setFilter(p => ({ ...p, sourceType: e.target.value }))}
-        >
-          <option value="">كل المصادر</option>
-          <option value="MANUAL">يدوي</option>
-          <option value="PAYMENT">دفعة</option>
-          <option value="INVOICE">فاتورة</option>
-        </select>
-      </div>
+      {/* Filter Bar */}
+      <Card noPadding className="shadow-sm">
+        <div className="p-4 flex flex-col xl:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full xl:w-auto">
+             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+             <Input 
+               placeholder="Search by Description or Entry #..." 
+               className="pl-10 h-10" 
+               value={filters.search}
+               onChange={e => setFilters({...filters, search: e.target.value})}
+             />
+          </div>
+          <div className="flex flex-wrap gap-4 items-center w-full xl:w-auto">
+            <Select value={filters.status} onValueChange={(val) => setFilters({...filters, status: val})}>
+              <SelectTrigger className="w-40 h-10">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="POSTED">Posted</SelectItem>
+                <SelectItem value="REVERSED">Reversed</SelectItem>
+              </SelectContent>
+            </Select>
 
-      <Card className="bg-white border-[#999999] shadow-sm rounded-md overflow-hidden">
-        <CardContent className="p-0">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-[#EBEBEB] bg-[#FAFAFA]">
-                <th className="text-right p-3 font-black text-[#222222] uppercase text-[10px] tracking-wider">رقم القيد</th>
-                <th className="text-right p-3 font-black text-[#222222] uppercase text-[10px] tracking-wider">التاريخ</th>
-                <th className="text-right p-3 font-black text-[#222222] uppercase text-[10px] tracking-wider">الوصف</th>
-                <th className="text-right p-3 font-black text-[#222222] uppercase text-[10px] tracking-wider">المصدر</th>
-                <th className="text-right p-3 font-black text-[#222222] uppercase text-[10px] tracking-wider">الحالة</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map((e: any) => (
-                <tr key={e.id} className="border-b border-[#F5F5F5] hover:bg-[#FAFAFA] cursor-pointer transition-colors">
-                  <td className="p-3">
-                    <Link href={`/dashboard/finance/journal-entries/${e.id}`} className="font-mono font-bold text-[#6264A7] hover:underline">
-                      {e.entryNumber}
-                    </Link>
-                  </td>
-                  <td className="p-3 font-mono text-[#666666]">{new Date(e.date).toLocaleDateString('ar-IQ')}</td>
-                  <td className="p-3 font-bold text-[#242424] max-w-[300px] truncate">{e.description}</td>
-                  <td className="p-3">
-                    <Badge variant="outline" className={cn("text-[9px] font-bold border-none", SOURCE_COLORS[e.sourceType] || "bg-gray-50 text-gray-600")}>
-                      {e.sourceType}
-                    </Badge>
-                  </td>
-                  <td className="p-3">
-                    <Badge variant="outline" className={cn("text-[9px] font-bold", STATUS_COLORS[e.status] || "bg-gray-100 text-gray-500")}>
-                      {e.status === 'DRAFT' ? 'مسودة' : e.status === 'POSTED' ? 'مرحّل' : e.status}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-              {entries.length === 0 && (
-                <tr><td colSpan={5} className="p-8 text-center text-[#999999] font-bold text-sm">لا توجد قيود</td></tr>
-              )}
-            </tbody>
-          </table>
-        </CardContent>
+            <Select value={filters.sourceType} onValueChange={(val) => setFilters({...filters, sourceType: val})}>
+              <SelectTrigger className="w-40 h-10">
+                <SelectValue placeholder="Source Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sources</SelectItem>
+                <SelectItem value="MANUAL">Manual</SelectItem>
+                <SelectItem value="PAYMENT">Payment</SelectItem>
+                <SelectItem value="INVOICE">Invoice</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <div className="flex items-center gap-2">
+               <Input 
+                 type="date" 
+                 className="h-10 w-36 text-xs" 
+                 value={filters.startDate}
+                 onChange={e => setFilters({...filters, startDate: e.target.value})}
+               />
+               <span className="text-neutral-400 text-xs">to</span>
+               <Input 
+                 type="date" 
+                 className="h-10 w-36 text-xs" 
+                 value={filters.endDate}
+                 onChange={e => setFilters({...filters, endDate: e.target.value})}
+               />
+            </div>
+
+            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-neutral-500 hover:text-primary-600">
+               <RotateCcw className="w-4 h-4 mr-2" /> Reset
+            </Button>
+          </div>
+        </div>
       </Card>
+
+      {/* Data Table */}
+      <DataTable 
+        columns={columns} 
+        data={entries} 
+        isLoading={loading}
+      />
+
+      <FloatingAction href="/dashboard/finance/journal-entries/new" label="New Entry" />
     </div>
   );
 }

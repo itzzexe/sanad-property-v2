@@ -9,13 +9,20 @@ export const metadata: Metadata = {
 import { Toaster } from 'sonner';
 import { CurrencyProvider } from "@/context/currency-context";
 
+import { ThemeProvider } from "@/context/theme-context";
+import { LanguageProvider } from "@/context/language-context";
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ar" dir="rtl" className="dark" suppressHydrationWarning>
-      <body>
-        <CurrencyProvider>
-          {children}
-        </CurrencyProvider>
+    <html lang="ar" suppressHydrationWarning>
+      <body className="transition-colors duration-200">
+        <LanguageProvider>
+          <ThemeProvider>
+            <CurrencyProvider>
+              {children}
+            </CurrencyProvider>
+          </ThemeProvider>
+        </LanguageProvider>
         <Toaster position="top-center" richColors />
       </body>
     </html>

@@ -83,6 +83,26 @@ export class DashboardService {
 
     const occupancyRate = totalUnits > 0 ? ((rentedUnits / totalUnits) * 100).toFixed(1) : '0';
 
+    // Get AR Aging Summary
+    const arAging = await this.arService.getAgingReport(now);
+    const arSummary = {
+      outstanding: arAging.totalOutstanding,
+      current: arAging.rows.reduce((sum, r) => sum + r.current, 0),
+      overdue30: arAging.rows.reduce((sum, r) => sum + r.bucket30, 0),
+      overdue60: arAging.rows.reduce((sum, r) => sum + r.bucket60, 0),
+      overdue90plus: arAging.rows.reduce((sum, r) => sum + r.bucket90 + r.bucket90plus, 0),
+    };
+
+    // Get Cash Position (simplified GL sum)
+    const cashAccounts = await this.prisma.journalLine.aggregate({
+      where: {
+        account: { code: { startsWith: '1' }, subtype: 'CURRENT_ASSET' },
+        journalEntry: { status: JournalStatus.POSTED }
+      },
+      _sum: { baseCurrencyDebit: true, baseCurrencyCredit: true }
+    });
+    const cashPosition = Number(cashAccounts._sum.baseCurrencyDebit || 0) - Number(cashAccounts._sum.baseCurrencyCredit || 0);
+
     return {
       properties: totalProperties,
       units: {
@@ -107,6 +127,8 @@ export class DashboardService {
       assets: {
          depreciation: totalDepreciation
       },
+      ar: arSummary,
+      cashPosition,
       occupancyRate: parseFloat(occupancyRate),
     };
   }

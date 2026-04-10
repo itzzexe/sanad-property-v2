@@ -259,6 +259,7 @@ model Property {
   // Certification
   requestingEntity  String?   @map("requesting_entity")
   certificationDate DateTime? @map("certification_date")
+  seals             String?   @map("seals")
 
   owner         User                 @relation(fields: [ownerId], references: [id])
   units         Unit[]

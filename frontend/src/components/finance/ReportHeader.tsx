@@ -1,31 +1,46 @@
 "use client";
+
+import { Printer, FileDown, Table } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Download, FileSpreadsheet } from "lucide-react";
-import { financeApi } from "@/lib/api/finance";
+import { cn } from "@/lib/utils";
 
-export function ReportHeader({ title, dateRange, reportType, children }: {
-  title: string; dateRange?: string; reportType: string; children?: React.ReactNode;
-}) {
-  const handleExport = async (format: 'pdf' | 'excel') => {
-    try {
-      const result = await financeApi.exportReport(reportType, format);
-      window.open(result.url, '_blank');
-    } catch (e) { console.error('Export failed', e); }
-  };
+interface ReportHeaderProps {
+  title: string;
+  dateRange: string;
+  onExportPdf?: () => void;
+  onExportExcel?: () => void;
+}
 
+export function ReportHeader({ title, dateRange, onExportPdf, onExportExcel }: ReportHeaderProps) {
   return (
-    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
-      <div>
-        <h1 className="text-2xl font-black text-[#242424]">{title}</h1>
-        {dateRange && <p className="text-xs font-bold text-[#222222] mt-1">{dateRange}</p>}
+    <div className="bg-primary-600 rounded-2xl p-6 mb-8 text-white shadow-lg shadow-primary-500/20 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+      <div className="absolute top-[-20px] right-[-20px] w-40 h-40 bg-white/5 rounded-full blur-2xl pointer-events-none" />
+      
+      <div className="z-10 text-center md:text-left">
+        <h2 className="text-3xl font-black tracking-tight">{title}</h2>
+        <p className="text-white/70 text-xs font-bold uppercase tracking-widest mt-1">
+          {dateRange}
+        </p>
       </div>
-      <div className="flex items-center gap-2">
-        {children}
-        <Button variant="outline" size="sm" onClick={() => handleExport('pdf')} className="gap-1.5 text-xs font-bold border-[#999999]">
-          <Download className="w-3.5 h-3.5" /> PDF
+
+      <div className="flex items-center gap-3 z-10">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="bg-transparent border-white/30 text-white hover:bg-white/10 hover:border-white h-10 px-6 rounded-xl"
+          onClick={onExportPdf}
+        >
+          <FileDown className="w-4 h-4 mr-2" /> 
+          Export PDF
         </Button>
-        <Button variant="outline" size="sm" onClick={() => handleExport('excel')} className="gap-1.5 text-xs font-bold border-[#999999]">
-          <FileSpreadsheet className="w-3.5 h-3.5" /> Excel
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="bg-transparent border-white/30 text-white hover:bg-white/10 hover:border-white h-10 px-6 rounded-xl"
+          onClick={onExportExcel}
+        >
+          <Table className="w-4 h-4 mr-2" /> 
+          Export Excel
         </Button>
       </div>
     </div>

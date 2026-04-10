@@ -4,50 +4,94 @@ import { useState, useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import {
-  Building2, LayoutDashboard, Home, DoorOpen, Users, FileText,
-  CreditCard, Receipt, LogOut, Menu, X, ChevronRight, Settings, User,
-  ShieldCheck, History as HistoryIcon, UserPlus, Wallet, BarChart3, Calculator,
-  Zap, FileBadge, ArrowDownRight, ArrowUpRight
+  Building2, LayoutDashboard, DoorOpen, Users, FileText,
+  CreditCard, Calendar, Receipt, TrendingUp, BookOpen,
+  PenLine, Scale, BarChart3, Target, ArrowDownToLine,
+  ArrowUpToLine, RefreshCw, Percent, CalendarRange, UserCog,
+  PanelLeftClose, Search, Bell, Moon, Sun, ChevronDown, 
+  Menu, X, LogOut, User, Settings as SettingsIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { NotificationDropdown } from "@/components/layout/notification-dropdown";
-import { useCurrency } from "@/context/currency-context";
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuLabel, 
+  DropdownMenuSeparator, 
+  DropdownMenuTrigger 
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { MobileNav } from "@/components/ui/mobile-nav";
+import { useTheme } from "@/context/theme-context";
+import { useLanguage } from "@/context/language-context";
 
-const BASE_NAVIGATION = [
-  { name: "لوحة التحكم", href: "/dashboard", icon: LayoutDashboard },
-  { name: "العقارات", href: "/dashboard/properties", icon: Home },
-  { name: "المستأجرين", href: "/dashboard/tenants", icon: Users },
-  { name: "العقود", href: "/dashboard/contracts", icon: FileText },
-  { name: "المدفوعات", href: "/dashboard/payments", icon: CreditCard },
-];
-
-const FINANCIAL_NAVIGATION = [
-  { name: "المحاسبة المالية", href: "/dashboard/finance", icon: Wallet },
-  { name: "المصروفات والفواتير", href: "/dashboard/expenses", icon: Zap },
-  { name: "تقسيم الأرباح", href: "/dashboard/sharing", icon: Calculator },
-  { name: "الأصول والإهلاك", href: "/dashboard/assets", icon: FileBadge },
-  { name: "التقارير المالية", href: "/dashboard/reports", icon: BarChart3 },
-];
-
-const ADMIN_NAVIGATION = [
-  { name: "المستخدمين", href: "/dashboard/users", icon: UserPlus },
-  { name: "سجل التدقيق", href: "/dashboard/audit-logs", icon: HistoryIcon },
-];
-
-const SETTINGS_NAVIGATION = [
-  { name: "الإعدادات", href: "/dashboard/settings", icon: Settings },
+const NAVIGATION = [
+  {
+    label: "MAIN",
+    items: [
+      { id: "dashboard", href: "/dashboard", icon: LayoutDashboard },
+      { id: "properties", href: "/dashboard/properties", icon: Building2 },
+      { id: "units", href: "/dashboard/units", icon: DoorOpen },
+      { id: "tenants", href: "/dashboard/tenants", icon: Users },
+    ]
+  },
+  {
+    label: "OPERATIONS",
+    items: [
+      { id: "leases", href: "/dashboard/contracts", icon: FileText },
+      { id: "payments", href: "/dashboard/payments", icon: CreditCard },
+      { id: "installments", href: "/dashboard/installments", icon: Calendar },
+      { id: "receipts", href: "/dashboard/receipts", icon: Receipt },
+    ]
+  },
+  {
+    label: "FINANCE",
+    items: [
+      { id: "finance", href: "/dashboard/finance", icon: TrendingUp },
+      { id: "chart_of_accounts", href: "/dashboard/finance/chart-of-accounts", icon: BookOpen },
+      { id: "journal_entries", href: "/dashboard/finance/journal-entries", icon: PenLine },
+      { id: "trial_balance", href: "/dashboard/finance/trial-balance", icon: Scale },
+      { 
+        id: "reports", 
+        href: "#", 
+        icon: BarChart3,
+        submenu: [
+          { id: "income_statement", href: "/dashboard/finance/reports/income-statement" },
+          { id: "balance_sheet", href: "/dashboard/finance/reports/balance-sheet" },
+          { id: "cash_flow", href: "/dashboard/finance/reports/cash-flow" },
+          { id: "ar_aging", href: "/dashboard/finance/reports/ar-aging" },
+        ]
+      },
+      { id: "budgets", href: "/dashboard/finance/budgets", icon: Target },
+      { id: "ar", href: "/dashboard/finance/ar", icon: ArrowDownToLine },
+      { id: "ap", href: "/dashboard/finance/ap", icon: ArrowUpToLine },
+      { id: "reconciliation", href: "/dashboard/finance/reconciliation", icon: RefreshCw },
+    ]
+  },
+  {
+    label: "SETTINGS",
+    items: [
+      { id: "tax_rates", href: "/dashboard/finance/tax/rates", icon: Percent },
+      { id: "fiscal_periods", href: "/dashboard/settings/fiscal-periods", icon: CalendarRange },
+      { id: "users", href: "/dashboard/users", icon: UserCog },
+    ]
+  }
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { displayCurrency, setDisplayCurrency } = useCurrency();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme, toggleTheme } = useTheme();
+  const { language, setLanguage, dir, t } = useLanguage();
+  const isFinanceSubApp = pathname.includes("/finance");
+  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [user, setUser] = useState<any>(null);
-  const [settings, setSettings] = useState<any>(null);
+  const [reportsOpen, setReportsOpen] = useState(false);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
@@ -58,16 +102,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const userData = localStorage.getItem("user");
     if (userData) setUser(JSON.parse(userData));
 
-    // Fetch global settings for logo and org name
-    api.get("/settings").then(setSettings).catch(console.error);
+    const handleKeyDown = (e: KeyboardEvent) => {
+       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+          e.preventDefault();
+          alert("Command Palette coming soon!");
+       }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [router]);
-
-  const navigation = [
-    ...BASE_NAVIGATION,
-    ...FINANCIAL_NAVIGATION,
-    ...(user?.role === 'ADMIN' ? ADMIN_NAVIGATION : []),
-    ...SETTINGS_NAVIGATION
-  ];
 
   const handleLogout = () => {
     localStorage.removeItem("accessToken");
@@ -76,144 +119,241 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push("/login");
   };
 
-  if (!user) return null;
-
-  return (
-    <div className="min-h-screen bg-[#F5F5F5] text-[#242424]" dir="rtl">
-      {/* Mobile overlay */}
-      {sidebarOpen && (
-        <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* Teams-Style Sidebar */}
-      <aside className={cn(
-        "fixed inset-y-0 right-0 z-50 w-64 bg-[#EBEBEB] border-l border-[#999999] transform transition-transform duration-300 ease-in-out lg:translate-x-0 overflow-hidden",
-        sidebarOpen ? "translate-x-0" : "translate-x-full"
-      )}>
-        <div className="flex flex-col h-full">
-          {/* Teams Header */}
-          <div className="flex items-center gap-3 px-6 py-6 bg-[#6264A7] text-white">
-            <div className="w-10 h-10 rounded-lg bg-white/20 flex items-center justify-center overflow-hidden">
-              {settings?.logo ? (
-                 <img src={settings.logo} alt="Logo" className="w-full h-full object-contain p-1" />
-              ) : (
-                 <Building2 className="w-6 h-6 text-white" />
-              )}
-            </div>
-            <div>
-              <h1 className="text-lg font-black tracking-tight leading-tight">{settings?.organizationName || "سـند"}</h1>
-              <p className="text-[9px] font-bold opacity-70 uppercase tracking-widest">Enterprise ERP</p>
-            </div>
-            <button className="mr-auto lg:hidden text-white/60 hover:text-white" onClick={() => setSidebarOpen(false)}>
-              <X className="w-5 h-5" />
-            </button>
+  const SidebarContent = () => (
+    <div className={cn(
+      "flex flex-col h-full border-r border-neutral-200 dark:border-neutral-800 transition-colors duration-500 bg-white dark:bg-neutral-900"
+    )}>
+      {/* Logo Area */}
+      <div className="h-16 flex items-center justify-between px-6 border-b border-neutral-50 dark:border-neutral-800">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary-50">
+            <Building2 className="w-5 h-5 text-primary-500" />
           </div>
+          {!isCollapsed && (
+            <h4 className="text-lg font-black tracking-tighter text-neutral-900 dark:text-neutral-50">
+              RentFlow
+            </h4>
+          )}
+        </div>
+        <button 
+          onClick={() => setIsCollapsed(!isCollapsed)}
+          className="p-1 text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors hidden lg:block"
+        >
+          <PanelLeftClose className={cn("w-5 h-5 transition-transform", isCollapsed && "rotate-180")} />
+        </button>
+      </div>
 
-          {/* Navigation */}
-          <nav className="flex-1 px-3 py-6 space-y-1 overflow-y-auto custom-scrollbar">
-            {navigation.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-              
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setSidebarOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-4 py-2.5 rounded-md text-sm font-semibold transition-all group",
-                    isActive
-                      ? "bg-white text-[#6264A7] shadow-sm ring-1 ring-[#999999]"
-                      : "text-[#111111] hover:bg-white/50 hover:text-[#6264A7]"
-                  )}
-                >
-                  <item.icon className={cn(
-                    "w-5 h-5",
-                    isActive ? "text-[#6264A7]" : "text-[#222222] group-hover:text-[#6264A7]"
-                  )} />
-                  {item.name}
-                </Link>
-              );
-            })}
-          </nav>
-
-          {/* Footer User */}
-          <div className="p-4 bg-[#F0F0F0] border-t border-[#999999]">
-            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/50 cursor-pointer transition-colors group">
-              <div className="w-9 h-9 rounded-lg bg-[#6264A7] flex items-center justify-center text-white font-black text-sm">
-                {user?.firstName?.[0]}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold truncate text-[#242424]">{user?.firstName} {user?.lastName}</p>
-                <p className="text-[9px] font-bold text-[#222222] uppercase tracking-tighter">
-                  {user?.role === 'ADMIN' ? 'مدير عام' : 'محاسب مالي'}
-                </p>
-              </div>
-              <button onClick={handleLogout} className="text-[#222222] hover:text-rose-600">
-                <LogOut className="w-4 h-4" />
-              </button>
+      {/* Search area */}
+      {!isCollapsed && (
+        <div className="px-4 py-4">
+          <div className="relative group">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input 
+              readOnly
+              placeholder="Search..." 
+              className="w-full h-9 pl-10 pr-12 bg-neutral-100 dark:bg-neutral-800 border-none rounded-md text-sm cursor-pointer outline-none focus:ring-1 focus:ring-primary-500 transition-all"
+              onClick={() => alert("Command Palette coming soon!")}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-[10px] text-neutral-400">
+               <span>⌘</span><span>K</span>
             </div>
           </div>
         </div>
+      )}
+
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto overflow-x-hidden scrollbar-hide">
+        {NAVIGATION.map((section) => (
+          <div key={section.label} className="space-y-1">
+            {!isCollapsed && (
+              <h5 className="px-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                {section.label}
+              </h5>
+            )}
+            {section.items.map((item) => {
+              const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+              const isReports = item.id === "reports";
+              const label = t(item.id);
+              
+              return (
+                <div key={item.id} className="space-y-1">
+                  <Link
+                    href={isReports ? "#" : item.href}
+                    onClick={(e) => {
+                      if (isReports) {
+                        e.preventDefault();
+                        setReportsOpen(!reportsOpen);
+                      } else {
+                        setIsMobileOpen(false);
+                      }
+                    }}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all group relative",
+                      isActive
+                        ? "bg-primary-50 text-primary-600 border-r-2 border-primary-500 rounded-r-none"
+                        : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                    )}
+                  >
+                    <item.icon className={cn("w-5 h-5", isActive ? "text-primary-500" : "text-neutral-400 group-hover:text-neutral-600")} />
+                    {!isCollapsed && (
+                      <span className="flex-1 flex items-center justify-between">
+                        {label}
+                        {isReports && <ChevronDown className={cn("w-4 h-4 transition-transform", reportsOpen && "rotate-180")} />}
+                      </span>
+                    )}
+                    {isCollapsed && isActive && (
+                       <div className="absolute right-0 top-0 bottom-0 w-1 bg-primary-500" />
+                    )}
+                  </Link>
+
+                  {isReports && reportsOpen && !isCollapsed && (
+                    <div className="ml-9 space-y-1">
+                      {item.submenu?.map((sub) => (
+                        <Link
+                          key={sub.id}
+                          href={sub.href}
+                          className={cn(
+                            "block px-3 py-2 text-xs rounded-md transition-all",
+                            isFinanceSubApp ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-neutral-500 hover:text-primary-600 hover:bg-primary-50/50"
+                          )}
+                        >
+                          {t(sub.id)}
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
+      </nav>
+
+      {/* User Area */}
+      <div className="p-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white dark:hover:bg-neutral-800 cursor-pointer transition-all">
+              <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 font-bold text-sm">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </div>
+              {!isCollapsed && (
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold truncate text-neutral-900 dark:text-neutral-50">{user?.firstName} {user?.lastName}</p>
+                  <Badge variant="neutral" size="sm" className="mt-0.5 pointer-events-none">
+                    {user?.role === 'ADMIN' ? 'Owner' : 'Manager'}
+                  </Badge>
+                </div>
+              )}
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 ml-4">
+            <DropdownMenuLabel>My Account</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
+              <User className="mr-2 h-4 w-4" /> <span>Profile</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
+              <SettingsIcon className="mr-2 h-4 w-4" /> <span>Settings</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={toggleTheme}>
+              {theme === 'light' ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
+              <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-danger focus:text-danger">
+              <LogOut className="mr-2 h-4 w-4" /> <span>Logout</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+    </div>
+  );
+
+  if (!user) return null;
+
+  return (
+    <div className="min-h-screen flex transition-all duration-500 bg-neutral-50 dark:bg-dark-bg" dir={dir}>
+      <MobileNav />
+      {/* Sidebar - Desktop */}
+      <aside className={cn(
+        "hidden lg:block h-screen sticky top-0 transition-all duration-300 ease-in-out z-50",
+        isCollapsed ? "w-20" : "w-[240px]"
+      )}>
+        <SidebarContent />
       </aside>
 
-      {/* Main content */}
-      <div className="lg:pr-64 transition-all duration-300 min-h-screen flex flex-col">
-        {/* Teams Header Navbar */}
-        <header className="sticky top-0 z-[40] flex items-center justify-between bg-white px-8 h-16 border-b border-[#999999] shadow-sm">
+      {/* Sidebar - Mobile Drawer */}
+      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
+        <SheetContent side="left" className="p-0 w-[240px]">
+          <SheetTitle className="sr-only">Mobile Navigation</SheetTitle>
+          <SheetDescription className="sr-only">Access all dashboard sections from here.</SheetDescription>
+          <SidebarContent />
+        </SheetContent>
+      </Sheet>
+
+      {/* Main Area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Top Bar */}
+        <header className="h-16 sticky top-0 z-40 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button className="lg:hidden p-1.5 rounded-md bg-[#F0F0F0] text-[#6264A7]" onClick={() => setSidebarOpen(true)}>
-              <Menu className="w-5 h-5" />
+            <button 
+              className="lg:hidden p-2 text-neutral-600" 
+              onClick={() => setIsMobileOpen(true)}
+            >
+              <Menu className="w-6 h-6" />
             </button>
-            <h2 className="text-[#222222] font-bold text-xs uppercase tracking-widest hidden md:block">
-              {pathname === '/dashboard' ? 'Overview' : pathname.split('/').pop()?.toUpperCase()}
-            </h2>
+            <div className="flex items-center gap-2 text-xs text-neutral-400">
+              <span className="hover:text-primary-500 cursor-pointer">Home</span>
+              <span>/</span>
+              <span className="hover:text-primary-500 cursor-pointer capitalize">
+                 {pathname.split('/')[2] || "Dashboard"}
+              </span>
+              {pathname.split('/').length > 3 && (
+                <>
+                  <span>/</span>
+                  <span className="text-neutral-900 dark:text-neutral-50 font-medium">Unit 4B</span>
+                </>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            {/* Currency Switcher */}
-            <div className="flex items-center bg-[#F0F0F0] p-1 rounded-md border border-[#999999]">
+          <div className="flex items-center gap-4 lg:gap-6">
+            {/* Fiscal Period Indicator */}
+            <div className="hidden sm:flex items-center px-3 py-1.5 bg-accent-50 dark:bg-accent-900/20 border border-accent-400/20 rounded-full">
+               <CalendarRange className="w-3.5 h-3.5 text-accent-500 mr-2" />
+               <span className="text-[10px] font-bold text-accent-600 uppercase tracking-wider">Jan 2025 — OPEN</span>
+            </div>
+
+            <div className="flex items-center gap-2">
               <button 
-                onClick={() => setDisplayCurrency("IQD")}
-                className={cn(
-                  "px-4 py-1.5 text-[10px] font-bold rounded-sm transition-all",
-                  displayCurrency === "IQD" ? "bg-white text-[#6264A7] shadow-sm" : "text-[#222222]"
-                )}
+                className="p-2 text-neutral-400 hover:text-primary-500 transition-colors"
+                onClick={toggleTheme}
               >
-                IQD
+                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-500" />}
               </button>
               <button 
-                onClick={() => setDisplayCurrency("USD")}
-                className={cn(
-                  "px-4 py-1.5 text-[10px] font-bold rounded-sm transition-all",
-                  displayCurrency === "USD" ? "bg-white text-[#6264A7] shadow-sm" : "text-[#222222]"
-                )}
+                className="px-2 py-1 text-[10px] font-black border border-neutral-200 dark:border-neutral-800 rounded uppercase hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
+                onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
               >
-                USD
+                {language === 'ar' ? 'EN' : 'AR'}
               </button>
             </div>
+
+            <div className="h-8 w-[1px] bg-neutral-200 dark:bg-neutral-800 mx-1 hidden lg:block" />
             
-            <div className="h-4 w-[1px] bg-[#999999]" />
-            <NotificationDropdown />
+            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[11px] font-bold text-primary-600">
+               {user?.firstName?.[0]}
+            </div>
           </div>
         </header>
 
-        {/* Dynamic content */}
-        <main className="flex-1 p-8 animate-in fade-in slide-in-from-bottom-2 duration-700">
-          <div className="max-w-[1400px] mx-auto">
+        {/* Content Area */}
+        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden pb-24 lg:pb-6">
+          <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
             {children}
           </div>
         </main>
-        
-        <footer className="px-8 py-4 bg-white border-t border-[#999999] flex items-center justify-between text-[10px] font-bold text-[#222222] uppercase tracking-widest">
-           <div>سـند للعقارات © {new Date().getFullYear()}</div>
-           <div className="flex items-center gap-2">
-              <Badge variant="outline" className="text-[8px] border-[#999999] text-[#222222]">Enterprise v4.2</Badge>
-              <div className="flex items-center gap-1">
-                 <div className="w-1 h-1 bg-emerald-500 rounded-full" />
-                 SERVER ONLINE
-              </div>
-           </div>
-        </footer>
       </div>
     </div>
   );
