@@ -17,16 +17,21 @@ export class PaymentService {
 
     const paymentNumber = `PAY-${Date.now().toString(36).toUpperCase()}-${uuidv4().slice(0, 4).toUpperCase()}`;
 
-    // Calculate late fee
+    // Calculate late fee using UTC midnight comparisons to avoid timezone drift
     let lateFee = 0;
     if (dto.installmentId) {
-      const installment = lease.installments.find(i => i.id === dto.installmentId);
+      const installment = lease.installments.find((i: any) => i.id === dto.installmentId);
       if (installment) {
-        const now = new Date();
-        const dueDate = new Date(installment.dueDate);
-        const gracePeriod = lease.lateFeeGraceDays * 24 * 60 * 60 * 1000;
-        if (now.getTime() > dueDate.getTime() + gracePeriod) {
-          lateFee = installment.amount * (lease.lateFeePercent / 100);
+        const toUTCDayStart = (d: Date) =>
+          Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+
+        const nowUTC     = toUTCDayStart(new Date());
+        const dueDateUTC = toUTCDayStart(new Date(installment.dueDate));
+        const graceDays  = Number(lease.lateFeeGraceDays) || 0;
+        const gracePeriodMs = graceDays * 24 * 60 * 60 * 1000;
+
+        if (nowUTC > dueDateUTC + gracePeriodMs) {
+          lateFee = Number(installment.amount) * (Number(lease.lateFeePercent) / 100);
         }
       }
     }

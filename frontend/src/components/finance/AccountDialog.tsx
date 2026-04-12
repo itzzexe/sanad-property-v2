@@ -49,7 +49,7 @@ interface AccountDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
-  parentAccount?: { id: string; code: string; name: string } | null;
+  parentAccount?: { id: string; code: string; name: string; type?: string } | null;
 }
 
 export function AccountDialog({

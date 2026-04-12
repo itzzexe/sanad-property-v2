@@ -85,11 +85,17 @@ export class AccountService {
     isActive?: boolean;
     parentId?: string | null;
   }): Promise<Account[]> {
+    const where: any = {};
+    if (filters?.type) where.type = filters.type;
+    if (filters?.isActive !== undefined) where.isActive = filters.isActive;
+    
+    // Explicitly handle parentId to allow filtering for root accounts (null)
+    if (filters?.parentId !== undefined) {
+      where.parentId = filters.parentId;
+    }
+
     return this.prisma.account.findMany({
-      where: {
-        ...filters,
-        parentId: filters?.parentId === undefined ? undefined : filters.parentId,
-      },
+      where,
       orderBy: { code: 'asc' },
     });
   }
@@ -173,12 +179,24 @@ export class AccountService {
     });
     if (!parent) throw new NotFoundException('Parent account not found');
 
+    const safeIncrement = (code: string): string => {
+      // Extract trailing numeric segment to increment
+      const match = code.match(/^(.*?)(\d+)$/);
+      if (match) {
+        const prefix = match[1];
+        const num = parseInt(match[2], 10) + 1;
+        const padded = String(num).padStart(match[2].length, '0');
+        return `${prefix}${padded}`;
+      }
+      // Fallback: append '1'
+      return `${code}1`;
+    };
+
     if (!parent.children || parent.children.length === 0) {
-      return (parseInt(parent.code) + 1).toString();
+      return safeIncrement(parent.code);
     }
 
-    const lastChildCode = parent.children[0].code;
-    return (parseInt(lastChildCode) + 1).toString();
+    return safeIncrement(parent.children[0].code);
   }
 
   async getLedger(

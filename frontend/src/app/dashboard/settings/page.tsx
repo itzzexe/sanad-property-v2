@@ -1,165 +1,285 @@
 "use client";
 
-import { useState } from "react";
-import { 
-  Settings, Building, Globe, Moon, CreditCard, 
-  Bell, Shield, Users, Save, Globe2, Wallet,
-  Languages, Layout
+import { useState, useEffect } from "react";
+import {
+  Building2, Globe, DollarSign,
+  Save, Loader2, CheckCircle2, Bell, Shield
 } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
-import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/language-context";
 import { useTheme } from "@/context/theme-context";
-import { useCurrency } from "@/context/currency-context";
-import { cn } from "@/lib/utils";
+
+const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
+
+const TABS = [
+  { id: "company",       icon: Building2, ar: "الشركة",       en: "Company"       },
+  { id: "localization",  icon: Globe,     ar: "اللغة والعملة", en: "Localization"  },
+  { id: "finance",       icon: DollarSign,ar: "المالية",       en: "Finance"       },
+  { id: "notifications", icon: Bell,      ar: "الإشعارات",     en: "Notifications" },
+  { id: "security",      icon: Shield,    ar: "الأمان",        en: "Security"      },
+];
 
 export default function SettingsPage() {
-  const { language, setLanguage, t } = useLanguage();
-  const { theme, toggleTheme } = useTheme();
-  const { displayCurrency: currency, setDisplayCurrency: setCurrency } = useCurrency();
-  const [saving, setSaving] = useState(false);
+  const { language, setLanguage, dir } = useLanguage();
+  const { theme, toggleTheme }         = useTheme();
 
-  async function handleSave() {
+  const [activeTab,  setActiveTab]  = useState("company");
+  const [settings,   setSettings]   = useState<any>({});
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [savedMsg,   setSavedMsg]   = useState(false);
+
+  useEffect(() => {
+    api.get("/settings")
+      .then(res => setSettings(res ?? {}))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleSave = async () => {
     setSaving(true);
-    setTimeout(() => {
-      setSaving(false);
-      alert("Settings saved successfully!");
-    }, 1000);
-  }
+    try {
+      await api.patch("/settings", settings);
+      setSavedMsg(true);
+      setTimeout(() => setSavedMsg(false), 2500);
+    } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  };
+
+  const field = (key: string, label: string, type = "text", placeholder = "") => (
+    <div className="space-y-1.5">
+      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{label}</label>
+      <input
+        type={type}
+        value={settings[key] ?? ""}
+        onChange={e => setSettings({ ...settings, [key]: type === "number" ? +e.target.value : e.target.value })}
+        placeholder={placeholder}
+        className={inp}
+      />
+    </div>
+  );
+
+  const toggle = (key: string, label: string, desc?: string) => (
+    <div className="flex items-center justify-between py-3 border-b border-neutral-50 dark:border-neutral-800 last:border-0">
+      <div>
+        <p className="text-sm font-semibold text-neutral-900 dark:text-white">{label}</p>
+        {desc && <p className="text-xs text-neutral-400 mt-0.5">{desc}</p>}
+      </div>
+      <button
+        onClick={() => setSettings({ ...settings, [key]: !settings[key] })}
+        className={cn(
+          "relative w-10 h-5 rounded-full transition-colors",
+          settings[key] ? "bg-blue-600" : "bg-neutral-200 dark:bg-neutral-700"
+        )}
+      >
+        <span className={cn(
+          "absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all",
+          settings[key] ? "left-[22px]" : "left-0.5"
+        )} />
+      </button>
+    </div>
+  );
 
   return (
-    <div className="space-y-8 pb-12 font-arabic">
-      <PageHeader 
-        title={language === 'ar' ? "الإعدادات العامة" : "General Settings"}
-        description={language === 'ar' ? "تخصيص النظام، إعدادات الشركة، واللغة المفضلة." : "Customize system behavior, company profile, and language preferences."}
-        actions={
-          <Button onClick={handleSave} isLoading={saving} className="bg-primary-600">
-             <Save className="w-4 h-4 mr-2" /> {language === 'ar' ? "حفظ التغييرات" : "Save Changes"}
-          </Button>
-        }
-      />
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {language === "ar" ? "الإعدادات" : "Settings"}
+          </h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {language === "ar" ? "إدارة إعدادات النظام والتطبيق" : "Manage system and application settings"}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {savedMsg && (
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-emerald-600 animate-in fade-in duration-200">
+              <CheckCircle2 className="w-4 h-4" />
+              {language === "ar" ? "تم الحفظ" : "Saved"}
+            </span>
+          )}
+          <button onClick={handleSave} disabled={saving || loading}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all disabled:opacity-50">
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            {language === "ar" ? "حفظ الإعدادات" : "Save Settings"}
+          </button>
+        </div>
+      </div>
 
-      <Tabs defaultValue="general" className="w-full">
-        <TabsList className="bg-white dark:bg-neutral-900 border border-neutral-100 dark:border-neutral-800 p-1 h-14 rounded-2xl mb-8">
-          <TabsTrigger value="general" className="rounded-xl px-8 font-bold gap-2">
-            <Settings className="w-4 h-4" /> {language === 'ar' ? "عام" : "General"}
-          </TabsTrigger>
-          <TabsTrigger value="company" className="rounded-xl px-8 font-bold gap-2">
-            <Building className="w-4 h-4" /> {language === 'ar' ? "الشركة" : "Company"}
-          </TabsTrigger>
-          <TabsTrigger value="localization" className="rounded-xl px-8 font-bold gap-2">
-            <Globe2 className="w-4 h-4" /> {language === 'ar' ? "اللغة والعملة" : "Localization"}
-          </TabsTrigger>
-          <TabsTrigger value="security" className="rounded-xl px-8 font-bold gap-2">
-            <Shield className="w-4 h-4" /> {language === 'ar' ? "الأمان" : "Security"}
-          </TabsTrigger>
-        </TabsList>
+      <div className="flex flex-col lg:flex-row gap-5">
+        {/* Sidebar tabs */}
+        <div className="lg:w-52 flex-shrink-0">
+          <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 p-2 space-y-0.5">
+            {TABS.map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-semibold transition-all text-start",
+                  activeTab === tab.id
+                    ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                    : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                )}>
+                <tab.icon className="w-4 h-4 flex-shrink-0" />
+                {tab[language as "ar"|"en"]}
+              </button>
+            ))}
+          </div>
+        </div>
 
-        <TabsContent value="general">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="p-6">
-                 <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-                    <Layout className="w-5 h-5 text-primary-500" />
-                    {language === 'ar' ? "المظهر والتجربة" : "Appearance & UX"}
-                 </h3>
-                 <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                       <div>
-                          <p className="font-bold">{language === 'ar' ? "الوضع الليلي" : "Dark Mode"}</p>
-                          <p className="text-xs text-neutral-400">{language === 'ar' ? "تبديل بين الوضع المضيء والمظلم" : "Switch between light and dark themes"}</p>
-                       </div>
-                       <Button variant="outline" onClick={toggleTheme}>
-                          {theme === 'dark' ? "Enable Light" : "Enable Dark"}
-                       </Button>
+        {/* Content panel */}
+        <div className="flex-1 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 p-6">
+          {loading ? (
+            <div className="space-y-4">
+              {[...Array(4)].map((_,i) => <div key={i} className="skeleton-shimmer h-10 rounded-lg" />)}
+            </div>
+          ) : (
+            <>
+              {activeTab === "company" && (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-white mb-4">
+                    {language === "ar" ? "بيانات الشركة" : "Company Information"}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {field("companyName",    language==="ar"?"اسم الشركة":"Company Name",       "text", "سَنَد للعقارات")}
+                    {field("companyPhone",   language==="ar"?"هاتف الشركة":"Company Phone")}
+                    {field("companyEmail",   language==="ar"?"بريد الشركة":"Company Email",    "email")}
+                    {field("companyAddress", language==="ar"?"عنوان الشركة":"Company Address")}
+                    {field("companyCity",    language==="ar"?"المدينة":"City")}
+                    {field("companyCountry", language==="ar"?"الدولة":"Country")}
+                    {field("taxId",          language==="ar"?"الرقم الضريبي":"Tax ID")}
+                    {field("licenseNumber",  language==="ar"?"رقم الرخصة":"License Number")}
+                  </div>
+                  <div className="space-y-1.5 pt-2">
+                    <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                      {language==="ar"?"عن الشركة":"About Company"}
+                    </label>
+                    <textarea value={settings.companyDescription ?? ""} rows={3} className={inp + " h-auto resize-none py-2"}
+                      onChange={e => setSettings({ ...settings, companyDescription: e.target.value })} />
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "localization" && (
+                <div className="space-y-6">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-white">
+                    {language === "ar" ? "اللغة والعملة" : "Language & Currency"}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                        {language==="ar"?"لغة الواجهة":"Interface Language"}
+                      </label>
+                      <select value={language} onChange={e => setLanguage(e.target.value as "ar"|"en")} className={inp}>
+                        <option value="ar">العربية</option>
+                        <option value="en">English</option>
+                      </select>
                     </div>
-                 </div>
-              </Card>
-           </div>
-        </TabsContent>
-
-        <TabsContent value="company">
-           <Card className="p-8">
-              <div className="max-w-2xl space-y-6">
-                 <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2 text-right">
-                       <Label>{language === 'ar' ? "اسم الشركة" : "Company Name"}</Label>
-                       <Input defaultValue="Sanad Real Estate" className="rounded-xl h-12 font-bold" />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                        {language==="ar"?"المظهر":"Theme"}
+                      </label>
+                      <button onClick={toggleTheme} className={cn(inp, "cursor-pointer text-start flex items-center justify-between")}>
+                        <span>{theme === "light" ? (language==="ar"?"فاتح":"Light") : (language==="ar"?"داكن":"Dark")}</span>
+                        <span className="text-neutral-400 text-xs">{language==="ar"?"انقر للتبديل":"Click to toggle"}</span>
+                      </button>
                     </div>
-                    <div className="space-y-2 text-right">
-                       <Label>{language === 'ar' ? "المعرف الضريبي" : "Tax ID"}</Label>
-                       <Input defaultValue="TR-9001-2025" className="rounded-xl h-12 font-bold" />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                        {language==="ar"?"العملة الافتراضية":"Default Currency"}
+                      </label>
+                      <select value={settings.defaultCurrency ?? "USD"} onChange={e => setSettings({ ...settings, defaultCurrency: e.target.value })} className={inp}>
+                        <option value="USD">USD — دولار أمريكي</option>
+                        <option value="IQD">IQD — دينار عراقي</option>
+                        <option value="EUR">EUR — يورو</option>
+                        <option value="SAR">SAR — ريال سعودي</option>
+                      </select>
                     </div>
-                 </div>
-                 <div className="space-y-2 text-right">
-                    <Label>{language === 'ar' ? "العنوان" : "Address"}</Label>
-                    <Input defaultValue="Karada, Baghdad, Iraq" className="rounded-xl h-12 font-bold" />
-                 </div>
-              </div>
-           </Card>
-        </TabsContent>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                        {language==="ar"?"سعر صرف IQD/USD":"IQD/USD Exchange Rate"}
+                      </label>
+                      <input type="number" min="0" value={settings.exchangeRateIQD ?? 1460}
+                        onChange={e => setSettings({ ...settings, exchangeRateIQD: +e.target.value })} className={inp} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
+                        {language==="ar"?"التنسيق الزمني":"Date Format"}
+                      </label>
+                      <select value={settings.dateFormat ?? "DD/MM/YYYY"} onChange={e => setSettings({ ...settings, dateFormat: e.target.value })} className={inp}>
+                        <option value="DD/MM/YYYY">DD/MM/YYYY</option>
+                        <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                        <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
 
-        <TabsContent value="localization">
-           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-right">
-              <Card className="p-8 border-primary-500/20">
-                 <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-                    <Languages className="w-5 h-5 text-primary-500" />
-                    {language === 'ar' ? "لغة الواجهة" : "Interface Language"}
-                 </h3>
-                 <div className="grid grid-cols-2 gap-4">
-                    <button 
-                      onClick={() => setLanguage('ar')}
-                      className={cn(
-                        "p-6 rounded-3xl border-2 transition-all text-center",
-                        language === 'ar' ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10" : "border-neutral-100 dark:border-neutral-800"
-                      )}
-                    >
-                       <span className="block text-2xl mb-2">🇮🇶</span>
-                       <span className="font-black">العربية</span>
-                    </button>
-                    <button 
-                      onClick={() => setLanguage('en')}
-                      className={cn(
-                        "p-6 rounded-3xl border-2 transition-all text-center",
-                        language === 'en' ? "border-primary-500 bg-primary-50 dark:bg-primary-900/10" : "border-neutral-100 dark:border-neutral-800"
-                      )}
-                    >
-                       <span className="block text-2xl mb-2">🇺🇸</span>
-                       <span className="font-black">English</span>
-                    </button>
-                 </div>
-              </Card>
+              {activeTab === "finance" && (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-white mb-4">
+                    {language === "ar" ? "الإعدادات المالية" : "Financial Settings"}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {field("defaultLateFeePercent", language==="ar"?"نسبة الغرامة الافتراضية %":"Default Late Fee %",    "number")}
+                    {field("defaultGraceDays",      language==="ar"?"أيام السماح الافتراضية":"Default Grace Days",      "number")}
+                    {field("fiscalYearStartMonth",  language==="ar"?"شهر بداية السنة المالية":"Fiscal Year Start Month","number")}
+                    {field("invoicePrefix",         language==="ar"?"بادئة رقم الفاتورة":"Invoice Prefix", "text", "INV-")}
+                  </div>
+                  <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden mt-4">
+                    {toggle("autoGenerateReceipts", language==="ar"?"إنشاء سندات تلقائياً":"Auto-generate receipts", language==="ar"?"عند تسجيل كل دفعة":"On every payment record")}
+                    {toggle("autoPostJournals",     language==="ar"?"ترحيل القيود تلقائياً":"Auto-post journal entries")}
+                    {toggle("allowNegativeBalance", language==="ar"?"السماح بالرصيد السالب":"Allow negative balance")}
+                  </div>
+                </div>
+              )}
 
-              <Card className="p-8">
-                 <h3 className="text-xl font-black mb-6 flex items-center gap-2">
-                    <Wallet className="w-5 h-5 text-accent-500" />
-                    {language === 'ar' ? "العملة الافتراضية" : "Default Currency"}
-                 </h3>
-                 <div className="space-y-4">
-                    <Button 
-                      variant={currency === 'IQD' ? 'solid' : 'outline'} 
-                      className="w-full h-14 rounded-2xl font-bold justify-between px-6"
-                      onClick={() => setCurrency('IQD')}
-                    >
-                       <span>الدينار العراقي (IQD)</span>
-                       {currency === 'IQD' && <span>✓</span>}
-                    </Button>
-                    <Button 
-                      variant={currency === 'USD' ? 'solid' : 'outline'} 
-                      className="w-full h-14 rounded-2xl font-bold justify-between px-6"
-                      onClick={() => setCurrency('USD')}
-                    >
-                       <span>US Dollar (USD)</span>
-                       {currency === 'USD' && <span>✓</span>}
-                    </Button>
-                 </div>
-              </Card>
-           </div>
-        </TabsContent>
-      </Tabs>
+              {activeTab === "notifications" && (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-white mb-4">
+                    {language === "ar" ? "إعدادات الإشعارات" : "Notification Settings"}
+                  </h2>
+                  <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                    {toggle("notifyOverduePayments",  language==="ar"?"إشعار المدفوعات المتأخرة":"Notify overdue payments",   language==="ar"?"قبل الاستحقاق بيوم":"1 day before due date")}
+                    {toggle("notifyLeaseExpiry",      language==="ar"?"إشعار انتهاء العقود":"Notify lease expiry",           language==="ar"?"قبل 30 يوم من الانتهاء":"30 days before expiry")}
+                    {toggle("notifyNewPayment",       language==="ar"?"إشعار عند استلام دفعة":"Notify on new payment")}
+                    {toggle("emailNotifications",     language==="ar"?"إشعارات البريد الإلكتروني":"Email notifications")}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    {field("notificationEmail",    language==="ar"?"بريد الإشعارات":"Notification Email", "email")}
+                    {field("overdueReminderDays",  language==="ar"?"أيام تذكير التأخير":"Overdue Reminder Days", "number")}
+                  </div>
+                </div>
+              )}
+
+              {activeTab === "security" && (
+                <div className="space-y-4">
+                  <h2 className="text-base font-bold text-neutral-900 dark:text-white mb-4">
+                    {language === "ar" ? "إعدادات الأمان" : "Security Settings"}
+                  </h2>
+                  <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                    {toggle("requireTwoFactor",     language==="ar"?"المصادقة الثنائية":"Two-factor authentication",    language==="ar"?"تعزيز أمان تسجيل الدخول":"Enhance login security")}
+                    {toggle("logAllActions",        language==="ar"?"تسجيل جميع الإجراءات":"Log all user actions")}
+                    {toggle("sessionTimeout",       language==="ar"?"انتهاء الجلسة التلقائي":"Auto session timeout")}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    {field("sessionTimeoutMinutes", language==="ar"?"مهلة الجلسة (دقيقة)":"Session Timeout (minutes)", "number")}
+                    {field("maxLoginAttempts",      language==="ar"?"أقصى محاولات الدخول":"Max Login Attempts", "number")}
+                  </div>
+                  <div className="p-4 bg-amber-50 dark:bg-amber-950/30 rounded-xl border border-amber-200 dark:border-amber-800/50">
+                    <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                      {language === "ar"
+                        ? "⚠ تأكد من استخدام JWT secrets قوية في ملف .env قبل النشر في الإنتاج"
+                        : "⚠ Ensure strong JWT secrets are set in .env before deploying to production"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

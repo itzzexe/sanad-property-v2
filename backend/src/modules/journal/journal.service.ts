@@ -64,6 +64,16 @@ export class JournalService {
     }
 
     const fiscalPeriod = await this.fiscalPeriodService.findPeriodForDate(dto.date);
+    if (!fiscalPeriod) {
+      throw new BadRequestException(
+        `No open fiscal period found for date ${dto.date}. Please create or open a fiscal period that covers this date.`
+      );
+    }
+    if ((fiscalPeriod as any).status === 'CLOSED') {
+      throw new BadRequestException(
+        `Fiscal period for date ${dto.date} is closed. Cannot post journal entries to a closed period.`
+      );
+    }
     const entryNumber = await this.journalNumberService.generateNext(fiscalPeriod.fiscalYearId);
 
     return this.prisma.journalEntry.create({

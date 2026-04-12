@@ -1,430 +1,305 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { 
-  DoorOpen, Plus, Search, Home, 
-  LayoutGrid, List, MoreVertical, 
-  Edit, Archive, Trash2, Eye, 
-  ChevronRight, Upload, Loader2,
-  FileText, Paperclip, MapPin, 
-  Bed, Bath, Square, Layers, Building,
-  ArrowRightLeft
+import { useState, useEffect } from "react";
+import {
+  DoorOpen, Plus, Search, Edit, Trash2,
+  Home, Building2, Loader2, X
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
-import { FloatingAction } from "@/components/ui/floating-action";
-import { DataTable } from "@/components/ui/data-table";
-import { 
-  Modal, 
-  ModalContent, 
-  ModalHeader, 
-  ModalTitle, 
-  ModalDescription, 
-  ModalFooter 
-} from "@/components/ui/modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
 import { useLanguage } from "@/context/language-context";
-import { AttachmentManager } from "@/components/shared/attachment-manager";
+
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+const UNIT_TYPES  = ["APARTMENT","VILLA","OFFICE","SHOP","WAREHOUSE","STUDIO","OTHER"];
+const UNIT_STATUS = ["AVAILABLE","RENTED","MAINTENANCE","RESERVED"];
+
+const statusStyle: Record<string, string> = {
+  AVAILABLE:   "badge-success",
+  RENTED:      "badge-info",
+  MAINTENANCE: "badge-warning",
+  RESERVED:    "badge-neutral",
+};
+const statusLabel: Record<string, { ar: string; en: string }> = {
+  AVAILABLE:   { ar: "متاحة",  en: "Available"   },
+  RENTED:      { ar: "مؤجرة",  en: "Rented"      },
+  MAINTENANCE: { ar: "صيانة",  en: "Maintenance" },
+  RESERVED:    { ar: "محجوزة", en: "Reserved"    },
+};
 
 export default function UnitsPage() {
-  const { language, t, dir } = useLanguage();
-  const { format } = useCurrency();
-  const [units, setUnits] = useState<any[]>([]);
-  const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [propertyFilter, setPropertyFilter] = useState("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showCreate, setShowCreate] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-  const [selectedUnit, setSelectedUnit] = useState<any>(null);
-  const [importing, setImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { language, dir } = useLanguage();
+  const { format }        = useCurrency();
 
-  // Form State
-  const [form, setForm] = useState({ 
-    propertyId: "", unitNumber: "", type: "APARTMENT", status: "AVAILABLE",
-    monthlyRent: 0, currency: "IQD", floor: 0, area: 0, 
-    bedrooms: 0, bathrooms: 0, description: ""
-  });
-  const [saving, setSaving] = useState(false);
+  const [units,        setUnits]        = useState<any[]>([]);
+  const [properties,   setProperties]   = useState<any[]>([]);
+  const [loading,      setLoading]      = useState(true);
+  const [search,       setSearch]       = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [propFilter,   setPropFilter]   = useState("ALL");
+  const [showModal,    setShowModal]    = useState(false);
+  const [editing,      setEditing]      = useState<any>(null);
+  const [saving,       setSaving]       = useState(false);
+  const [deleting,     setDeleting]     = useState<string | null>(null);
 
-  useEffect(() => { 
-    loadProperties();
-  }, []);
+  const emptyForm = {
+    unitNumber:"", floor:"", unitType:"APARTMENT",
+    bedrooms:0, bathrooms:0, area:0,
+    rentAmount:0, currency:"USD",
+    propertyId:"", description:"",
+  };
+  const [form, setForm] = useState({ ...emptyForm });
 
-  useEffect(() => { 
-    loadUnits(); 
-  }, [search, statusFilter, propertyFilter]);
-
-  async function loadProperties() {
-    try {
-      const res = await api.get('/properties?limit=100');
-      setProperties(res.data || []);
-    } catch (err) { console.error(err); }
-  }
-
-  async function loadUnits() {
+  const load = async () => {
     setLoading(true);
     try {
-      let url = `/units?search=${search}&limit=50`;
-      if (statusFilter !== "all") url += `&status=${statusFilter}`;
-      if (propertyFilter !== "all") url += `&propertyId=${propertyFilter}`;
-      const res = await api.get(url);
-      setUnits(res.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+      const [u, p] = await Promise.all([
+        api.get(`/units?search=${encodeURIComponent(search)}&limit=100`),
+        api.get("/properties?limit=100"),
+      ]);
+      setUnits(u.data ?? []);
+      setProperties(p.data ?? []);
+    } catch { setUnits([]); }
+    finally { setLoading(false); }
+  };
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.propertyId) {
-      alert(language === 'ar' ? 'يرجى اختيار العقار' : 'Please select a property');
-      return;
-    }
-    setSaving(true);
+  useEffect(() => { load(); }, [search]);
+
+  const filtered = units.filter(u => {
+    if (statusFilter !== "ALL" && u.status !== statusFilter) return false;
+    if (propFilter   !== "ALL" && u.propertyId !== propFilter) return false;
+    return true;
+  });
+
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm }); setShowModal(true); };
+  const openEdit   = (u: any) => {
+    setEditing(u);
+    setForm({
+      unitNumber: u.unitNumber, floor: u.floor ?? "", unitType: u.unitType,
+      bedrooms: u.bedrooms ?? 0, bathrooms: u.bathrooms ?? 0, area: u.area ?? 0,
+      rentAmount: Number(u.rentAmount ?? 0), currency: u.currency ?? "USD",
+      propertyId: u.propertyId ?? "", description: u.description ?? "",
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
     try {
-      await api.post("/units", {
-        ...form,
-        monthlyRent: Number(form.monthlyRent),
-        floor: Number(form.floor),
-        area: Number(form.area),
-        bedrooms: Number(form.bedrooms),
-        bathrooms: Number(form.bathrooms),
-      });
-      setShowCreate(false);
-      setForm({
-        propertyId: "", unitNumber: "", type: "APARTMENT", status: "AVAILABLE",
-        monthlyRent: 0, currency: "IQD", floor: 0, area: 0, 
-        bedrooms: 0, bathrooms: 0, description: ""
-      });
-      loadUnits();
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
+      if (editing) await api.patch(`/units/${editing.id}`, form);
+      else         await api.post("/units", form);
+      setShowModal(false); load();
+    } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  };
 
-  async function handleDelete(id: string) {
-    if (!confirm(language === 'ar' ? "هل أنت متأكد من حذف هذه الوحدة؟" : "Are you sure you want to delete this unit?")) return;
-    try {
-      await api.delete(`/units/${id}`);
-      loadUnits();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  }
+  const handleDelete = async (id: string) => {
+    if (!confirm(language === "ar" ? "حذف هذه الوحدة نهائياً؟" : "Delete this unit?")) return;
+    setDeleting(id);
+    try { await api.delete(`/units/${id}`); load(); }
+    catch (err: any) { alert(err.message); }
+    finally { setDeleting(null); }
+  };
 
-  const columns = [
-    { header: t('unit_number'), accessorKey: "unitNumber", cell: (item: any) => (
-      <div className={cn("flex items-center gap-3", language === 'ar' ? "flex-row-reverse" : "")}>
-        <div className="w-8 h-8 rounded bg-primary-50 dark:bg-primary-900/10 flex items-center justify-center text-primary-500">
-          <DoorOpen className="w-4 h-4" />
-        </div>
-        <span className="font-bold text-neutral-900 dark:text-neutral-50">{item.unitNumber}</span>
-      </div>
-    )},
-    { header: t('property'), accessorKey: "property", cell: (item: any) => (
-      <div className="flex flex-col">
-        <span className="text-sm font-bold text-neutral-900 dark:text-neutral-50">{item.property?.name}</span>
-        <span className="text-[10px] text-neutral-400">{item.property?.address}</span>
-      </div>
-    )},
-    { header: t('type'), accessorKey: "type", cell: (item: any) => (
-      <Badge variant="neutral" size="sm">{t(item.type) || item.type}</Badge>
-    )},
-    { header: t('status'), accessorKey: "status", cell: (item: any) => (
-      <Badge 
-        variant={item.status === 'AVAILABLE' ? 'success' : item.status === 'RENTED' ? 'neutral' : 'warning'} 
-        size="sm"
-      >
-        {t(item.status) || item.status}
-      </Badge>
-    )},
-    { header: t('rent'), accessorKey: "monthlyRent", cell: (item: any) => (
-      <span className="font-black text-neutral-900 dark:text-neutral-50">{format(item.monthlyRent, item.currency)}</span>
-    )},
-    { header: t('actions'), accessorKey: "actions", cell: (item: any) => (
-      <div className="flex items-center gap-1">
-         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => {
-            setSelectedUnit(item);
-            setShowAttachments(true);
-         }}>
-           <Paperclip className="w-4 h-4" />
-         </Button>
-         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(item.id)}>
-           <Trash2 className="w-4 h-4 text-danger" />
-         </Button>
-      </div>
-    )},
-  ];
+  const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
 
   return (
-    <div className={cn("space-y-8 pb-12", language === 'ar' ? "font-arabic text-right" : "")} dir={dir}>
-      <PageHeader 
-        title={t('units_management') || (language === 'ar' ? "إدارة الوحدات" : "Units Management")}
-        description={t('units_description') || (language === 'ar' ? "عرض وإدارة جميع الوحدات السكنية والتجارية" : "View and manage all residential and commercial units")}
-        actions={
-          <div className="flex items-center gap-3">
-             <Button size="sm" onClick={() => setShowCreate(true)} className="bg-primary-600">
-                <Plus className="w-4 h-4 mr-2" /> {t('add_unit') || (language === 'ar' ? "إضافة وحدة" : "Add Unit")}
-             </Button>
-          </div>
-        }
-      />
-
-      <Card noPadding className="shadow-sm">
-        <div className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex flex-1 flex-col md:flex-row gap-4 w-full">
-            <div className="relative w-full md:w-80">
-               <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400", language === 'ar' ? "right-3" : "left-3")} />
-               <Input 
-                 placeholder={t('search_units') || (language === 'ar' ? "بحث في الوحدات..." : "Search units...")}
-                 className={cn("h-10", language === 'ar' ? "pr-10" : "pl-10")} 
-                 value={search}
-                 onChange={e => setSearch(e.target.value)}
-               />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter} dir={dir}>
-              <SelectTrigger className="w-full md:w-40 h-10 font-medium">
-                <SelectValue placeholder={t('status')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('all')}</SelectItem>
-                <SelectItem value="AVAILABLE">{t('AVAILABLE')}</SelectItem>
-                <SelectItem value="RENTED">{t('RENTED')}</SelectItem>
-                <SelectItem value="MAINTENANCE">{t('MAINTENANCE')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={propertyFilter} onValueChange={setPropertyFilter} dir={dir}>
-              <SelectTrigger className="w-full md:w-56 h-10 font-medium">
-                <SelectValue placeholder={t('property')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('all_properties') || (language === 'ar' ? "جميع العقارات" : "All Properties")}</SelectItem>
-                {properties.map(p => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
-             <button onClick={() => setViewMode("grid")} className={cn("p-1.5 rounded-md transition-all", viewMode === "grid" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400")}><LayoutGrid className="w-4 h-4" /></button>
-             <button onClick={() => setViewMode("list")} className={cn("p-1.5 rounded-md transition-all", viewMode === "list" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400")}><List className="w-4 h-4" /></button>
-          </div>
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {language === "ar" ? "الوحدات العقارية" : "Units"}
+          </h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${filtered.length} ${language === "ar" ? "وحدة" : "units"}`}
+          </p>
         </div>
-      </Card>
+        <button onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm shadow-blue-600/20 transition-all self-start">
+          <Plus className="w-4 h-4" />
+          {language === "ar" ? "إضافة وحدة" : "Add Unit"}
+        </button>
+      </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder={language === "ar" ? "ابحث عن وحدة..." : "Search units..."}
+            className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 ps-9 pe-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+        </div>
+        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
+          className="h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[140px]">
+          <option value="ALL">{language === "ar" ? "كل الحالات" : "All Status"}</option>
+          {UNIT_STATUS.map(s => <option key={s} value={s}>{statusLabel[s]?.[language as "ar"|"en"] ?? s}</option>)}
+        </select>
+        <select value={propFilter} onChange={e => setPropFilter(e.target.value)}
+          className="h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 min-w-[160px]">
+          <option value="ALL">{language === "ar" ? "كل العقارات" : "All Properties"}</option>
+          {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </div>
+
+      {/* Table */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           {Array.from({ length: 6 }).map((_, i) => (
-             <Card key={i} className="h-64 animate-pulse bg-neutral-50 dark:bg-neutral-900/50" />
-           ))}
-        </div>
-      ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {units.map((unit) => (
-            <Card key={unit.id} noPadding className="overflow-hidden group hover:shadow-xl transition-all duration-300">
-              <div className={cn(
-                "h-2 bg-primary-500",
-                unit.status === 'AVAILABLE' ? 'bg-emerald-500' : unit.status === 'RENTED' ? 'bg-indigo-500' : 'bg-amber-500'
-              )} />
-              <div className="p-5 space-y-4">
-                 <div className="flex items-start justify-between">
-                    <div>
-                       <h3 className="text-xl font-black text-neutral-900 dark:text-neutral-50 group-hover:text-primary-500 transition-colors">
-                          {t('unit') || (language === 'ar' ? 'وحدة' : 'Unit')} {unit.unitNumber}
-                       </h3>
-                       <p className="flex items-center text-xs text-neutral-400 mt-1 font-bold">
-                          <Building className="w-3 h-3 mx-1" /> {unit.property?.name}
-                       </p>
-                    </div>
-                    <Badge variant={unit.status === 'AVAILABLE' ? 'success' : 'neutral'} size="sm">
-                       {t(unit.status) || unit.status}
-                    </Badge>
-                 </div>
-
-                 <div className="grid grid-cols-2 gap-3 pb-2">
-                    <div className="flex items-center gap-2 text-neutral-500">
-                       <Bed className="w-4 h-4" /> <span className="text-sm font-bold">{unit.bedrooms || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-neutral-500">
-                       <Bath className="w-4 h-4" /> <span className="text-sm font-bold">{unit.bathrooms || 0}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-neutral-500">
-                       <Square className="w-4 h-4" /> <span className="text-xs font-bold">{unit.area || 0} m²</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-neutral-500">
-                       <Layers className="w-4 h-4" /> <span className="text-xs font-bold">{t('floor')} {unit.floor}</span>
-                    </div>
-                 </div>
-
-                 <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-                    <div>
-                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t('monthly_rent')}</p>
-                       <p className="text-lg font-black text-neutral-900 dark:text-neutral-50">{format(unit.monthlyRent, unit.currency)}</p>
-                    </div>
-                    <DropdownMenu dir={dir}>
-                       <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                             <MoreVertical className="w-4 h-4" />
-                          </Button>
-                       </DropdownMenuTrigger>
-                       <DropdownMenuContent align={language === 'ar' ? "start" : "end"}>
-                          <DropdownMenuItem className="gap-2" onClick={() => {
-                             setSelectedUnit(unit);
-                             setShowAttachments(true);
-                          }}>
-                            <Paperclip className="w-4 h-4" /> {t('attachments')}
-                          </DropdownMenuItem>
-                          <DropdownMenuItem className="text-danger gap-2" onClick={() => handleDelete(unit.id)}>
-                             <Trash2 className="w-4 h-4" /> {t('delete')}
-                          </DropdownMenuItem>
-                       </DropdownMenuContent>
-                    </DropdownMenu>
-                 </div>
-              </div>
-            </Card>
-          ))}
+        <div className="space-y-3">{[...Array(6)].map((_, i) => <Sk key={i} className="h-14" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <DoorOpen className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">
+            {language === "ar" ? "لا توجد وحدات" : "No units found"}
+          </p>
+          <button onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />
+            {language === "ar" ? "أضف وحدة" : "Add Unit"}
+          </button>
         </div>
       ) : (
-        <DataTable columns={columns} data={units} />
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-x-auto">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "الوحدة" : "Unit"}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "العقار" : "Property"}</th>
+                <th>{language === "ar" ? "النوع" : "Type"}</th>
+                <th>{language === "ar" ? "الإيجار/شهر" : "Rent/Month"}</th>
+                <th>{language === "ar" ? "الحالة" : "Status"}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u: any) => (
+                <tr key={u.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-950/30 flex items-center justify-center flex-shrink-0">
+                        <Home className="w-4 h-4 text-violet-500" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-neutral-900 dark:text-white">{u.unitNumber}</p>
+                        <p className="text-xs text-neutral-400">
+                          {u.floor ? `${language === "ar" ? "ط" : "F"}${u.floor}` : "—"} · {u.area ? `${u.area}m²` : ""}
+                        </p>
+                      </div>
+                    </div>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1.5 text-neutral-600 dark:text-neutral-400 text-sm">
+                      <Building2 className="w-3.5 h-3.5 flex-shrink-0" />
+                      <span className="truncate max-w-[160px]">{u.property?.name ?? "—"}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="badge-info text-[10px] font-bold px-2 py-0.5 rounded-full border">{u.unitType}</span>
+                  </td>
+                  <td className="font-bold text-neutral-900 dark:text-white">
+                    {format(Number(u.rentAmount ?? 0))}
+                  </td>
+                  <td>
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border", statusStyle[u.status] ?? "badge-neutral")}>
+                      {statusLabel[u.status]?.[language as "ar"|"en"] ?? u.status}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(u.id)} disabled={deleting === u.id}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+                        {deleting === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Mobile FAB */}
-      <FloatingAction href="#" label={t('add_unit')} />
-
-      {/* Unit Creation Modal */}
-      <Modal open={showCreate} onOpenChange={setShowCreate}>
-        <ModalContent className="sm:max-w-2xl bg-white dark:bg-neutral-900 border-none rounded-[32px] p-0" dir={dir}>
-          <form onSubmit={handleCreate}>
-            <div className="p-8 space-y-6">
-              <ModalHeader>
-                <ModalTitle className="text-3xl font-black text-neutral-900 dark:text-neutral-50">{t('add_unit')}</ModalTitle>
-                <ModalDescription className="text-base text-neutral-500">{t('units_description')}</ModalDescription>
-              </ModalHeader>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                 <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('property')} <span className="text-danger">*</span></Label>
-                    <Select value={form.propertyId} onValueChange={val => setForm({...form, propertyId: val})} dir={dir}>
-                       <SelectTrigger className="h-12 rounded-xl border-neutral-100 font-bold">
-                          <SelectValue placeholder={t('select_property')} />
-                       </SelectTrigger>
-                       <SelectContent>
-                          {properties.map(p => (
-                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                       </SelectContent>
-                    </Select>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('unit_number')} <span className="text-danger">*</span></Label>
-                    <Input required value={form.unitNumber} onChange={e => setForm({...form, unitNumber: e.target.value})} className="h-12 rounded-xl font-bold" />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('type')}</Label>
-                    <Select value={form.type} onValueChange={val => setForm({...form, type: val})} dir={dir}>
-                       <SelectTrigger className="h-12 rounded-xl font-bold">
-                          <SelectValue />
-                       </SelectTrigger>
-                       <SelectContent>
-                          <SelectItem value="APARTMENT">{t('APARTMENT')}</SelectItem>
-                          <SelectItem value="COMMERCIAL">{t('COMMERCIAL')}</SelectItem>
-                          <SelectItem value="HOUSE">{t('HOUSE')}</SelectItem>
-                          <SelectItem value="OFFICE">{t('OFFICE')}</SelectItem>
-                       </SelectContent>
-                    </Select>
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('rent')} ({form.currency}) <span className="text-danger">*</span></Label>
-                    <Input required type="number" value={form.monthlyRent} onChange={e => setForm({...form, monthlyRent: Number(e.target.value)})} className="h-12 rounded-xl font-black text-lg" />
-                 </div>
-              </div>
-
-              <div className="grid grid-cols-4 gap-4">
-                 <div className="space-y-2">
-                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('floor')}</Label>
-                    <Input type="number" value={form.floor} onChange={e => setForm({...form, floor: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('area')} (m²)</Label>
-                    <Input type="number" value={form.area} onChange={e => setForm({...form, area: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('bedrooms')}</Label>
-                    <Input type="number" value={form.bedrooms} onChange={e => setForm({...form, bedrooms: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
-                 </div>
-                 <div className="space-y-2">
-                    <Label className="font-bold text-[10px] uppercase tracking-widest text-neutral-400">{t('bathrooms')}</Label>
-                    <Input type="number" value={form.bathrooms} onChange={e => setForm({...form, bathrooms: Number(e.target.value)})} className="h-12 rounded-xl text-center font-bold" />
-                 </div>
-              </div>
-
-              <div className="space-y-2">
-                 <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('description')}</Label>
-                 <Input value={form.description} onChange={e => setForm({...form, description: e.target.value})} className="h-12 rounded-xl" />
-              </div>
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 scale-in max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+              <h2 className="font-bold text-neutral-900 dark:text-white">
+                {editing ? (language === "ar" ? "تعديل الوحدة" : "Edit Unit") : (language === "ar" ? "إضافة وحدة جديدة" : "Add New Unit")}
+              </h2>
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
             </div>
-
-            <ModalFooter className="p-8 bg-neutral-100 dark:bg-neutral-800/50 gap-4 rounded-b-[32px]">
-               <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="h-12 rounded-xl px-8 font-bold text-neutral-500">{t('cancel')}</Button>
-               <Button type="submit" isLoading={saving} className="h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl px-12 font-black shadow-lg shadow-primary-600/20">
-                 {t('add_unit')}
-               </Button>
-            </ModalFooter>
-          </form>
-        </ModalContent>
-      </Modal>
-
-      {/* Attachments Modal */}
-      <Modal open={showAttachments} onOpenChange={setShowAttachments}>
-        <ModalContent className="sm:max-w-2xl bg-white dark:bg-neutral-900 border-none rounded-[32px] p-8" dir={dir}>
-          <ModalHeader className="mb-6">
-            <ModalTitle className="text-2xl font-black flex items-center gap-2">
-              <Paperclip className="w-6 h-6 text-indigo-600" />
-              {t('unit_attachments') || (language === 'ar' ? 'مرفقات الوحدة' : 'Unit Attachments')}: {selectedUnit?.unitNumber}
-            </ModalTitle>
-          </ModalHeader>
-          
-          {selectedUnit && (
-            <AttachmentManager 
-              entityType="UNIT" 
-              entityId={selectedUnit.id} 
-              title={t('attachments')}
-            />
-          )}
-
-          <div className="mt-8 flex justify-end">
-            <Button onClick={() => setShowAttachments(false)} className="rounded-xl px-8 font-bold">{t('close') || (language === 'ar' ? 'إغلاق' : 'Close')}</Button>
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "رقم الوحدة *" : "Unit Number *"}</label>
+                  <input required value={form.unitNumber} onChange={e => setForm({ ...form, unitNumber: e.target.value })} className={inp} placeholder="A-101" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "الطابق" : "Floor"}</label>
+                  <input value={form.floor} onChange={e => setForm({ ...form, floor: e.target.value })} className={inp} placeholder="1" />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "العقار *" : "Property *"}</label>
+                  <select required value={form.propertyId} onChange={e => setForm({ ...form, propertyId: e.target.value })} className={inp}>
+                    <option value="">{language === "ar" ? "اختر العقار..." : "Select property..."}</option>
+                    {properties.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "نوع الوحدة" : "Unit Type"}</label>
+                  <select value={form.unitType} onChange={e => setForm({ ...form, unitType: e.target.value })} className={inp}>
+                    {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "المساحة م²" : "Area m²"}</label>
+                  <input type="number" min="0" value={form.area} onChange={e => setForm({ ...form, area: +e.target.value })} className={inp} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "غرف النوم" : "Bedrooms"}</label>
+                  <input type="number" min="0" value={form.bedrooms} onChange={e => setForm({ ...form, bedrooms: +e.target.value })} className={inp} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "الحمامات" : "Bathrooms"}</label>
+                  <input type="number" min="0" value={form.bathrooms} onChange={e => setForm({ ...form, bathrooms: +e.target.value })} className={inp} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "الإيجار الشهري *" : "Monthly Rent *"}</label>
+                  <input type="number" min="0" required value={form.rentAmount} onChange={e => setForm({ ...form, rentAmount: +e.target.value })} className={inp} />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "العملة" : "Currency"}</label>
+                  <select value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })} className={inp}>
+                    <option value="USD">USD</option>
+                    <option value="IQD">IQD</option>
+                    <option value="EUR">EUR</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                  {language === "ar" ? "إلغاء" : "Cancel"}
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editing ? (language === "ar" ? "حفظ" : "Save") : (language === "ar" ? "إضافة" : "Add")}
+                </button>
+              </div>
+            </form>
           </div>
-        </ModalContent>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,600 +1,640 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { 
-  Building2, Plus, Search, MapPin, 
-  LayoutGrid, List, MoreVertical, 
-  Edit, Archive, Trash2, Eye, 
-  ChevronRight, Upload, Loader2,
-  FileText, Paperclip, Map, Users
+import { useState, useEffect } from "react";
+import {
+  Building2, Plus, Search, LayoutGrid, List,
+  Edit, Trash2, Home, Users, DollarSign,
+  Loader2, X, FileText, ChevronLeft
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
-import { FloatingAction } from "@/components/ui/floating-action";
-import { DataTable } from "@/components/ui/data-table";
-import { 
-  Modal, 
-  ModalContent, 
-  ModalHeader, 
-  ModalTitle, 
-  ModalDescription, 
-  ModalFooter 
-} from "@/components/ui/modal";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-
 import { useLanguage } from "@/context/language-context";
 
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+const TABS = [
+  { id: 0, label: "معلومات عامة" },
+  { id: 1, label: "السجل الحالي" },
+  { id: 2, label: "السجل المنقول منه" },
+  { id: 3, label: "تفاصيل الملكية" },
+  { id: 4, label: "تفاصيل التسجيل" },
+];
+
+const sectionColors: Record<string, { border: string; dot: string }> = {
+  blue:    { border: "border-blue-100 dark:border-blue-900/30",       dot: "bg-blue-500" },
+  emerald: { border: "border-emerald-100 dark:border-emerald-900/30", dot: "bg-emerald-500" },
+  violet:  { border: "border-violet-100 dark:border-violet-900/30",   dot: "bg-violet-500" },
+  amber:   { border: "border-amber-100 dark:border-amber-900/30",     dot: "bg-amber-500" },
+  rose:    { border: "border-rose-100 dark:border-rose-900/30",       dot: "bg-rose-500" },
+};
+
+const emptyForm = {
+  name: "",
+  issuer: "",
+  registrationDirectorate: "",
+  formType: "",
+  governorate: "",
+  district: "الرصافة",
+  subDistrict: "",
+  street: "",
+  recordNumber: "",
+  recordDate: "",
+  recordVolume: "",
+  prevRecordNumber: "",
+  prevRecordDate: "",
+  prevRecordVolume: "",
+  propertySequence: "",
+  neighborhoodName: "",
+  doorNumber: "",
+  plotNumber: "",
+  sectionNumber: "",
+  sectionName: "",
+  ownerNationality: "",
+  boundaries: "كما في الخارطة",
+  propertyGender: "",
+  propertyTypeDetailed: "",
+  contents: "",
+  easements: "",
+  areaSqm: "" as string | number,
+  areaOlk: "" as string | number,
+  areaDonum: "" as string | number,
+  registrationNature: "",
+  insuranceNotes: "",
+  deedRuling: "",
+};
+
+type PForm = typeof emptyForm;
+
 export default function PropertiesPage() {
-  const { language, t, dir } = useLanguage();
+  const { language, dir } = useLanguage();
   const { format } = useCurrency();
+
   const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
-  const [showCreate, setShowCreate] = useState(false);
-  const [importing, setImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading]     = useState(true);
+  const [search, setSearch]       = useState("");
+  const [viewMode, setViewMode]   = useState<"grid" | "list">("grid");
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing]     = useState<any>(null);
+  const [saving, setSaving]       = useState(false);
+  const [deleting, setDeleting]   = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState(0);
+  const [form, setForm]           = useState<PForm>({ ...emptyForm });
 
-  // Form State
-  const [form, setForm] = useState({ 
-    name: "", address: "", city: "Baghdad", country: "Iraq", description: "",
-    issuer: "", registrationDirectorate: "", formType: "", governorate: "Baghdad",
-    district: "", subDistrict: "", street: "", recordNumber: "", recordDate: "",
-    recordVolume: "", prevRecordNumber: "", prevRecordDate: "", prevRecordVolume: "",
-    propertySequence: "", neighborhoodName: "", doorNumber: "", plotNumber: "",
-    sectionNumber: "", sectionName: "", ownerNationality: "", boundaries: "كما في الخارطة",
-    propertyGender: "", propertyTypeDetailed: "", contents: "", easements: "",
-    areaSqm: 0, areaOlk: 0, areaDonum: 0, registrationNature: "",
-    insuranceNotes: "", deedRuling: "", requestingEntity: "", certificationDate: "",
-    seals: ""
-  });
-  const [saving, setSaving] = useState(false);
+  const set = (k: keyof PForm, v: string | number) =>
+    setForm(f => ({ ...f, [k]: v }));
 
-  useEffect(() => { load(); }, [search, statusFilter]);
-
-  async function load() {
+  const load = async () => {
     setLoading(true);
     try {
-      const statusParam = statusFilter === "all" ? "" : `&status=${statusFilter}`;
-      const res = await api.get(`/properties?search=${search}${statusParam}&include=units&limit=50`);
-      setProperties(res.data || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+      const res = await api.get(`/properties?search=${encodeURIComponent(search)}&limit=50`);
+      setProperties(res.data ?? []);
+    } catch { setProperties([]); }
+    finally { setLoading(false); }
+  };
 
-  async function handleCreate(e: React.FormEvent) {
+  useEffect(() => { load(); }, [search]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setForm({ ...emptyForm });
+    setActiveTab(0);
+    setShowModal(true);
+  };
+
+  const openEdit = (p: any) => {
+    setEditing(p);
+    setForm({
+      name:                    p.name ?? "",
+      issuer:                  p.issuer ?? "",
+      registrationDirectorate: p.registrationDirectorate ?? "",
+      formType:                p.formType ?? "",
+      governorate:             p.governorate ?? "",
+      district:                p.district ?? "الرصافة",
+      subDistrict:             p.subDistrict ?? "",
+      street:                  p.street ?? "",
+      recordNumber:            p.recordNumber ?? "",
+      recordDate:              p.recordDate ? String(p.recordDate).slice(0, 10) : "",
+      recordVolume:            p.recordVolume ?? "",
+      prevRecordNumber:        p.prevRecordNumber ?? "",
+      prevRecordDate:          p.prevRecordDate ? String(p.prevRecordDate).slice(0, 10) : "",
+      prevRecordVolume:        p.prevRecordVolume ?? "",
+      propertySequence:        p.propertySequence ?? "",
+      neighborhoodName:        p.neighborhoodName ?? "",
+      doorNumber:              p.doorNumber ?? "",
+      plotNumber:              p.plotNumber ?? "",
+      sectionNumber:           p.sectionNumber ?? "",
+      sectionName:             p.sectionName ?? "",
+      ownerNationality:        p.ownerNationality ?? "",
+      boundaries:              p.boundaries ?? "كما في الخارطة",
+      propertyGender:          p.propertyGender ?? "",
+      propertyTypeDetailed:    p.propertyTypeDetailed ?? "",
+      contents:                p.contents ?? "",
+      easements:               p.easements ?? "",
+      areaSqm:                 p.areaSqm ?? "",
+      areaOlk:                 p.areaOlk ?? "",
+      areaDonum:               p.areaDonum ?? "",
+      registrationNature:      p.registrationNature ?? "",
+      insuranceNotes:          p.insuranceNotes ?? "",
+      deedRuling:              p.deedRuling ?? "",
+    });
+    setActiveTab(0);
+    setShowModal(true);
+  };
+
+  const validate = (): string | null => {
+    const required: Array<{ k: keyof PForm; label: string }> = [
+      { k: "name",                    label: "اسم/مرجع العقار" },
+      { k: "issuer",                  label: "الجهة المصدرة" },
+      { k: "registrationDirectorate", label: "مديرية التسجيل العقاري في" },
+      { k: "formType",                label: "نوع النموذج" },
+      { k: "governorate",             label: "المحافظة" },
+      { k: "recordNumber",            label: "العدد (السجل الحالي)" },
+      { k: "recordDate",              label: "التاريخ (السجل الحالي)" },
+      { k: "recordVolume",            label: "رقم المجلد (السجل الحالي)" },
+      { k: "prevRecordNumber",        label: "العدد (السجل المنقول منه)" },
+      { k: "prevRecordDate",          label: "التاريخ (السجل المنقول منه)" },
+      { k: "prevRecordVolume",        label: "رقم المجلد (السجل المنقول منه)" },
+      { k: "propertySequence",        label: "تسلسل العقار" },
+      { k: "neighborhoodName",        label: "اسم المحلة" },
+      { k: "ownerNationality",        label: "المالك أو المتصرف وتابعيته" },
+      { k: "boundaries",              label: "الحدود" },
+      { k: "propertyGender",          label: "جنس العقار" },
+      { k: "propertyTypeDetailed",    label: "نوع العقار (الصنف)" },
+      { k: "registrationNature",      label: "ماهية التسجيل ومستنداته" },
+    ];
+    for (const { k, label } of required) {
+      if (!form[k]) return `حقل "${label}" مطلوب`;
+    }
+    return null;
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const err = validate();
+    if (err) { alert(err); return; }
     setSaving(true);
     try {
-      // Ensure numeric values are numbers
-      const payload = {
-        ...form,
-        areaSqm: Number(form.areaSqm),
-        areaOlk: Number(form.areaOlk),
-        areaDonum: Number(form.areaDonum),
-      };
-      await api.post("/properties", payload);
-      setShowCreate(false);
-      load();
-    } catch (err: any) {
-      alert(err.response?.data?.message || err.message);
-    } finally {
-      setSaving(false);
-    }
-  }
+      const payload: any = { ...form };
+      if (payload.areaSqm  !== "") payload.areaSqm  = Number(payload.areaSqm);
+      else delete payload.areaSqm;
+      if (payload.areaOlk  !== "") payload.areaOlk  = Number(payload.areaOlk);
+      else delete payload.areaOlk;
+      if (payload.areaDonum !== "") payload.areaDonum = Number(payload.areaDonum);
+      else delete payload.areaDonum;
 
-  async function handleDelete(id: string) {
-    if (!confirm(language === 'ar' ? "هل أنت متأكد من حذف هذا العقار؟" : "Are you sure you want to delete this property?")) return;
-    try {
-      await api.delete(`/properties/${id}`);
+      if (editing) await api.patch(`/properties/${editing.id}`, payload);
+      else         await api.post("/properties", payload);
+      setShowModal(false);
       load();
-    } catch (err: any) {
-      alert(err.message);
-    }
-  }
+    } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  };
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImporting(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    try {
-      await api.post("/properties/import", formData);
-      load();
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
+  const handleDelete = async (id: string) => {
+    if (!confirm("حذف هذا العقار نهائياً؟")) return;
+    setDeleting(id);
+    try { await api.delete(`/properties/${id}`); load(); }
+    catch (err: any) { alert(err.message); }
+    finally { setDeleting(null); }
+  };
 
-  const columns = [
-    { header: t('property_name'), accessorKey: "name", cell: (item: any) => (
-      <div className={cn("flex items-center gap-3", language === 'ar' ? "flex-row-reverse" : "")}>
-        <div className="w-8 h-8 rounded bg-primary-50 dark:bg-primary-900/10 flex items-center justify-center text-primary-500">
-          <Building2 className="w-4 h-4" />
-        </div>
-        <span className="font-bold text-neutral-900 dark:text-neutral-50">{item.name}</span>
+  const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
+
+  /* ── Inline sub-components (no hook rules broken — declared inside render) ── */
+  const SH = ({ title, color = "blue" }: { title: string; color?: string }) => {
+    const c = sectionColors[color] ?? sectionColors.blue;
+    return (
+      <div className={`flex items-center gap-2 mb-4 pb-2 border-b-2 ${c.border}`}>
+        <div className={`w-1 h-5 ${c.dot} rounded-full flex-shrink-0`} />
+        <h3 className="text-sm font-black text-neutral-700 dark:text-neutral-300">{title}</h3>
       </div>
-    )},
-    { header: t('location'), accessorKey: "address", cell: (item: any) => (
-      <span className="text-neutral-500 text-xs">{item.address}, {t(item.city) || item.city}</span>
-    )},
-    { header: t('units'), accessorKey: "units", cell: (item: any) => (
-      <span className="font-medium">{item._count?.units || 0} {t('units').toLowerCase()}</span>
-    )},
-    { header: t('occupancy'), accessorKey: "occupancy", cell: (item: any) => {
-      const rented = item.units?.filter((u: any) => u.status === 'RENTED').length || 0;
-      const total = item._count?.units || item.units?.length || 0;
-      const pct = total > 0 ? (rented / total) * 100 : 0;
-      return (
-        <div className="flex items-center gap-2">
-           <div className="w-16 h-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
-              <div className="h-full bg-accent-500" style={{ width: `${pct}%` }} />
-           </div>
-           <span className="text-xs font-bold">{pct.toFixed(0)}%</span>
-        </div>
-      );
-    }},
-    { header: t('status'), accessorKey: "status", cell: (item: any) => (
-      <Badge variant={item.deletedAt ? "danger" : "success"} size="sm">{item.deletedAt ? t('inactive') : t('active')}</Badge>
-    )},
-    { header: t('revenue'), accessorKey: "revenue", cell: (item: any) => (
-      <span className="font-black text-neutral-900 dark:text-neutral-50">{format(0)}</span>
-    )},
-    { header: t('actions'), accessorKey: "actions", cell: (item: any) => (
-      <div className="flex items-center gap-1">
-         <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Eye className="w-4 h-4" /></Button>
-         <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDelete(item.id)}><Trash2 className="w-4 h-4 text-danger" /></Button>
-      </div>
-    )},
-  ];
+    );
+  };
+
+  const F = ({ k, label, req, ph, type }: { k: keyof PForm; label: string; req?: boolean; ph?: string; type?: string }) => (
+    <div className="space-y-1">
+      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 block">
+        {label}{req && <span className="text-red-500 ms-0.5">*</span>}
+      </label>
+      <input
+        type={type ?? "text"}
+        value={form[k] as string}
+        onChange={e => set(k, e.target.value)}
+        placeholder={ph ?? ""}
+        className={inp}
+      />
+    </div>
+  );
+
+  const TA = ({ k, label, req, ph }: { k: keyof PForm; label: string; req?: boolean; ph?: string }) => (
+    <div className="space-y-1">
+      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400 block">
+        {label}{req && <span className="text-red-500 ms-0.5">*</span>}
+      </label>
+      <textarea
+        rows={3}
+        value={form[k] as string}
+        onChange={e => set(k, e.target.value)}
+        placeholder={ph ?? ""}
+        className={inp + " h-20 resize-none py-2"}
+      />
+    </div>
+  );
 
   return (
-    <div className={cn("space-y-8 pb-12", language === 'ar' ? "font-arabic text-right" : "")} dir={dir}>
-      <PageHeader 
-        title={t('properties_portfolio')}
-        description={t('properties_description')}
-        actions={
-          <div className="flex items-center gap-3">
-             <input type="file" ref={fileInputRef} onChange={handleImport} className="hidden" accept=".xlsx,.xls" />
-             <Button variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} isLoading={importing}>
-                <Upload className="w-4 h-4 mr-2" /> {t('import_excel')}
-             </Button>
-             <Button size="sm" onClick={() => setShowCreate(true)} className="bg-primary-600">
-                <Plus className="w-4 h-4 mr-2" /> {t('add_property')}
-             </Button>
-          </div>
-        }
-      />
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
 
-      {/* Filter Bar */}
-      <Card noPadding className="shadow-sm">
-        <div className="p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
-          <div className="flex flex-1 flex-col md:flex-row gap-4 w-full">
-            <div className="relative w-full md:w-80">
-               <Search className={cn("absolute top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400", language === 'ar' ? "right-3" : "left-3")} />
-               <Input 
-                 placeholder={t('search_properties')} 
-                 className={cn("h-10", language === 'ar' ? "pr-10" : "pl-10")} 
-                 value={search}
-                 onChange={e => setSearch(e.target.value)}
-               />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter} dir={dir}>
-              <SelectTrigger className="w-full md:w-40 h-10 font-medium">
-                <SelectValue placeholder={t('status')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t('all_status')}</SelectItem>
-                <SelectItem value="active">{t('active')}</SelectItem>
-                <SelectItem value="inactive">{t('inactive')}</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select defaultValue="all" dir={dir}>
-              <SelectTrigger className="w-full md:w-40 h-10 font-medium">
-                <SelectValue placeholder={t('city')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{language === 'ar' ? "كل المدن" : "All Cities"}</SelectItem>
-                <SelectItem value="Baghdad">{t('Baghdad')}</SelectItem>
-                <SelectItem value="Erbil">{t('Erbil')}</SelectItem>
-                <SelectItem value="Basra">{t('Basra')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          
-          <div className="flex items-center bg-neutral-100 dark:bg-neutral-800 p-1 rounded-lg">
-             <button 
-               onClick={() => setViewMode("grid")}
-               className={cn(
-                 "p-1.5 rounded-md transition-all", 
-                 viewMode === "grid" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400"
-               )}
-             >
-               <LayoutGrid className="w-4 h-4" />
-             </button>
-             <button 
-               onClick={() => setViewMode("list")}
-               className={cn(
-                 "p-1.5 rounded-md transition-all", 
-                 viewMode === "list" ? "bg-white dark:bg-neutral-700 shadow-sm text-primary-500" : "text-neutral-400"
-               )}
-             >
-               <List className="w-4 h-4" />
-             </button>
-          </div>
+      {/* ── Page Header ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {language === "ar" ? "العقارات" : "Properties"}
+          </h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${properties.length} ${language === "ar" ? "عقار مسجل" : "properties registered"}`}
+          </p>
         </div>
-      </Card>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <button
+            onClick={() => setViewMode(viewMode === "grid" ? "list" : "grid")}
+            className="p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all"
+          >
+            {viewMode === "grid" ? <List className="w-4 h-4" /> : <LayoutGrid className="w-4 h-4" />}
+          </button>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm shadow-blue-600/20 transition-all"
+          >
+            <Plus className="w-4 h-4" />
+            {language === "ar" ? "إضافة عقار" : "Add Property"}
+          </button>
+        </div>
+      </div>
 
-      {/* Content Area */}
+      {/* ── Search ── */}
+      <div className="relative max-w-md">
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder={language === "ar" ? "ابحث عن عقار..." : "Search properties..."}
+          className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 ps-9 pe-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all"
+        />
+      </div>
+
+      {/* ── Content ── */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-           {Array.from({ length: 6 }).map((_, i) => (
-             <Card key={i} className="h-80 animate-pulse bg-neutral-50 dark:bg-neutral-900/50" />
-           ))}
+        <div className={cn(viewMode === "grid" ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" : "space-y-3")}>
+          {[...Array(6)].map((_, i) => <Sk key={i} className="h-48" />)}
+        </div>
+      ) : properties.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <Building2 className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">
+            {language === "ar" ? "لا توجد عقارات بعد" : "No properties yet"}
+          </p>
+          <button
+            onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            {language === "ar" ? "أضف أول عقار" : "Add your first property"}
+          </button>
         </div>
       ) : viewMode === "grid" ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6">
-          {properties.map((property) => (
-            <Card key={property.id} noPadding className="overflow-hidden group">
-              <div className="h-48 bg-gradient-to-br from-primary-100 to-primary-200 dark:from-primary-900/20 dark:to-primary-950/20 relative">
-                 <div className={cn("absolute top-4", language === 'ar' ? "left-4" : "right-4")}>
-                    <Badge variant="success" size="sm" className="shadow-lg">{t('active')}</Badge>
-                 </div>
-                 <Building2 className={cn("absolute bottom-[-20px] w-24 h-24 text-white/20", language === 'ar' ? "right-4" : "left-4")} />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {properties.map((p: any) => (
+            <div key={p.id} className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card hover:shadow-md-soft transition-all group overflow-hidden">
+              <div className="h-28 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-blue-950/30 dark:to-indigo-950/30 flex items-center justify-center relative">
+                <Building2 className="w-10 h-10 text-blue-300 dark:text-blue-700" />
+                <div className="absolute top-2 end-2">
+                  <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border", p.isActive !== false ? "badge-success" : "badge-neutral")}>
+                    {p.isActive !== false ? "نشط" : "غير نشط"}
+                  </span>
+                </div>
               </div>
-              <div className="p-5 space-y-4">
-                 <div className="flex items-start justify-between">
-                    <div className={cn(language === 'ar' ? "text-right" : "text-left")}>
-                       <h3 className="text-lg font-bold text-neutral-900 dark:text-neutral-50 group-hover:text-primary-500 transition-colors">
-                          {property.name}
-                       </h3>
-                       <p className="flex items-center text-xs text-neutral-400 mt-1">
-                          <MapPin className="w-3 h-3 mx-1" /> {property.address}, {t(property.city) || property.city}
-                       </p>
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-neutral-900 dark:text-white text-base leading-tight line-clamp-1">{p.name}</h3>
+                    {(p.neighborhoodName || p.governorate) && (
+                      <p className="text-xs text-neutral-400 mt-0.5 line-clamp-1">
+                        {[p.neighborhoodName, p.governorate].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button onClick={() => openEdit(p)} className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                      <Edit className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => handleDelete(p.id)} disabled={deleting === p.id} className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-red-600 hover:bg-red-50 transition-colors">
+                      {deleting === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                {p.propertyTypeDetailed && (
+                  <p className="text-[10px] text-neutral-400 flex items-center gap-1 mb-2">
+                    <FileText className="w-3 h-3 flex-shrink-0" /> {p.propertyTypeDetailed}
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-2 pt-3 border-t border-neutral-50 dark:border-neutral-800">
+                  {[
+                    { icon: Home,       label: language === "ar" ? "الوحدات"    : "Units",   value: p.units?.length ?? 0 },
+                    { icon: Users,      label: language === "ar" ? "المستأجرون" : "Tenants", value: p.units?.filter((u: any) => u.status === "RENTED").length ?? 0 },
+                    { icon: DollarSign, label: language === "ar" ? "الإيجار"    : "Rent",    value: format(p.units?.reduce((s: number, u: any) => s + Number(u.rentAmount ?? 0), 0)) },
+                  ].map((stat, i) => (
+                    <div key={i} className="text-center">
+                      <p className="text-[10px] text-neutral-400 font-medium">{stat.label}</p>
+                      <p className="text-sm font-bold text-neutral-900 dark:text-white mt-0.5">{stat.value}</p>
                     </div>
-                    <DropdownMenu dir={dir}>
-                       <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                             <MoreVertical className="w-4 h-4" />
-                          </Button>
-                       </DropdownMenuTrigger>
-                       <DropdownMenuContent align={language === 'ar' ? "start" : "end"}>
-                          <DropdownMenuItem className="gap-2"><Edit className="w-4 h-4" /> {t('edit')}</DropdownMenuItem>
-                          <DropdownMenuItem className="gap-2"><Archive className="w-4 h-4" /> {t('archive')}</DropdownMenuItem>
-                          <DropdownMenuItem className="text-danger gap-2" onClick={() => handleDelete(property.id)}>
-                             <Trash2 className="w-4 h-4" /> {t('delete')}
-                          </DropdownMenuItem>
-                       </DropdownMenuContent>
-                    </DropdownMenu>
-                 </div>
-
-                 <div className="h-[1px] w-full bg-neutral-100 dark:bg-neutral-800" />
-
-                 <div className="grid grid-cols-3 gap-4 text-center">
-                    <div>
-                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t('units')}</p>
-                       <p className="text-sm font-bold mt-0.5">{property._count?.units || 0}</p>
-                    </div>
-                    <div>
-                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t('occupancy')}</p>
-                       <p className="text-sm font-bold mt-0.5 text-accent-600">
-                          {((property.units?.filter((u: any) => u.status === 'RENTED').length || 0) / (property._count?.units || property.units?.length || 1) * 100).toFixed(0)}%
-                       </p>
-                    </div>
-                    <div>
-                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t('revenue')}</p>
-                       <p className="text-sm font-bold mt-0.5">{format(0)}</p>
-                    </div>
-                 </div>
-
-                 <div className="h-[1px] w-full bg-neutral-100 dark:bg-neutral-800" />
-
-                 <Button 
-                   variant="outline" 
-                   className="w-full text-xs font-bold gap-2 group-hover:bg-primary-500 group-hover:text-white transition-all"
-                  >
-                   {t('view_details')} <ChevronRight className={cn("w-4 h-4", language === 'ar' ? "rotate-180" : "")} />
-                 </Button>
+                  ))}
+                </div>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
       ) : (
-        <DataTable columns={columns} data={properties} />
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-hidden">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className="text-right">{language === "ar" ? "العقار" : "Property"}</th>
+                <th className="text-right">{language === "ar" ? "المحلة / المحافظة" : "Neighborhood"}</th>
+                <th>{language === "ar" ? "النوع" : "Type"}</th>
+                <th>{language === "ar" ? "الوحدات" : "Units"}</th>
+                <th>{language === "ar" ? "الحالة" : "Status"}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {properties.map((p: any) => (
+                <tr key={p.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <span className="font-semibold text-neutral-900 dark:text-white">{p.name}</span>
+                    </div>
+                  </td>
+                  <td className="text-neutral-500">
+                    {[p.neighborhoodName, p.governorate].filter(Boolean).join(", ") || "—"}
+                  </td>
+                  <td>
+                    <span className="badge-info text-[10px] font-bold px-2 py-0.5 rounded-full border">
+                      {p.propertyTypeDetailed ?? "—"}
+                    </span>
+                  </td>
+                  <td className="font-semibold">{p.units?.length ?? 0}</td>
+                  <td>
+                    <span className={cn("text-[10px] font-bold px-2 py-0.5 rounded-full border", p.isActive !== false ? "badge-success" : "badge-neutral")}>
+                      {p.isActive !== false ? "نشط" : "غير نشط"}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(p.id)} disabled={deleting === p.id} className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                        {deleting === p.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Mobile FAB */}
-      <FloatingAction href="#" label={t('add_property')} />
-
-      {/* Property Creation Modal (Sanad Overhaul) */}
-      <Modal open={showCreate} onOpenChange={setShowCreate}>
-        <ModalContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto custom-scrollbar bg-neutral-50 dark:bg-neutral-900 border-none rounded-[32px] p-0" dir={dir}>
-          <form onSubmit={handleCreate}>
-            <div className="p-8 space-y-12">
-              <ModalHeader className={cn(language === 'ar' ? "text-right" : "text-left")}>
-                <ModalTitle className="text-3xl font-black text-neutral-900 dark:text-neutral-50">{t('add_property')}</ModalTitle>
-                <ModalDescription className="text-base font-medium text-neutral-500">{t('properties_description')}</ModalDescription>
-              </ModalHeader>
-
-              {/* General Property Info (Internal usage) */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <div className="w-10 h-10 rounded-2xl bg-primary-50 dark:bg-primary-900/20 flex items-center justify-center text-primary-500">
-                      <Building2 className="w-5 h-5" />
-                   </div>
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('general_info')} (النظام)</h3>
+      {/* ── MODAL ── */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div
+            className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl w-full max-w-3xl border border-neutral-100 dark:border-neutral-800 flex flex-col"
+            style={{ maxHeight: "90vh" }}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 flex-shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                  <Building2 className="w-4 h-4 text-blue-600" />
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400 flex items-center gap-1">
-                        {t('property_name')} <span className="text-danger">*</span>
-                      </Label>
-                      <Input required value={form.name} onChange={e => setForm({...form, name: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 dark:bg-neutral-900/50 dark:border-neutral-700 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400 flex items-center gap-1">
-                        {t('location')} <span className="text-danger">*</span>
-                      </Label>
-                      <Input required value={form.address} onChange={e => setForm({...form, address: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 dark:bg-neutral-900/50 dark:border-neutral-700 rounded-xl font-bold" />
-                   </div>
+                <div>
+                  <h2 className="font-black text-neutral-900 dark:text-white text-base">
+                    {editing ? "تعديل بيانات العقار" : "تسجيل عقار جديد"}
+                  </h2>
+                  <p className="text-[11px] text-neutral-400">نموذج السجل العقاري الدائمي</p>
                 </div>
               </div>
-
-              {/* Sanad: General legal Info */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <div className="w-10 h-10 rounded-2xl bg-accent-50 dark:bg-accent-900/20 flex items-center justify-center text-accent-500">
-                      <FileText className="w-5 h-5" />
-                   </div>
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('general_info')} (السند)</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">
-                        {t('issuer')} <span className="text-danger">({t('mandatory')})</span>
-                      </Label>
-                      <Input required value={form.issuer} onChange={e => setForm({...form, issuer: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">
-                        {t('registration_directorate')} <span className="text-danger">({t('mandatory')})</span>
-                      </Label>
-                      <Input required value={form.registrationDirectorate} onChange={e => setForm({...form, registrationDirectorate: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">
-                        {t('form_type')} <span className="text-danger">({t('mandatory')})</span>
-                      </Label>
-                      <Input required value={form.formType} onChange={e => setForm({...form, formType: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Current Record */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-900/20 flex items-center justify-center text-indigo-500">
-                      <Map className="w-5 h-5" />
-                   </div>
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('current_record_desc')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('governorate')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.governorate} onChange={e => setForm({...form, governorate: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('district')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.district} onChange={e => setForm({...form, district: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('sub_district')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.subDistrict} onChange={e => setForm({...form, subDistrict: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-medium" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('street')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.street} onChange={e => setForm({...form, street: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-medium" />
-                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('number')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.recordNumber} onChange={e => setForm({...form, recordNumber: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('date')} <span className="text-danger">*</span></Label>
-                      <Input required type="date" value={form.recordDate} onChange={e => setForm({...form, recordDate: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('volume_number')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.recordVolume} onChange={e => setForm({...form, recordVolume: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Transferred From */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-900/20 flex items-center justify-center text-amber-500">
-                      <Archive className="w-5 h-5" />
-                   </div>
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('prev_record_desc')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('number')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.prevRecordNumber} onChange={e => setForm({...form, prevRecordNumber: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('date')} <span className="text-danger">*</span></Label>
-                      <Input required type="date" value={form.prevRecordDate} onChange={e => setForm({...form, prevRecordDate: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('volume_number')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.prevRecordVolume} onChange={e => setForm({...form, prevRecordVolume: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Property Identification */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('property_sequence')} & {t('neighborhood_name')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('property_sequence')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.propertySequence} onChange={e => setForm({...form, propertySequence: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('neighborhood_name')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.neighborhoodName} onChange={e => setForm({...form, neighborhoodName: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-                <div className="space-y-2">
-                   <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('location_details')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                   <Input value={form.doorNumber} onChange={e => setForm({...form, doorNumber: e.target.value})} placeholder="رقم الباب / رقم القطعة / رقم المقاطعة / اسم المقاطعة" className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                </div>
-              </div>
-
-              {/* Sanad: Details & Ownership */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-900/20 flex items-center justify-center text-emerald-500">
-                      <Users className="w-5 h-5" />
-                   </div>
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('ownership_details')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('owner_nationality')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.ownerNationality} onChange={e => setForm({...form, ownerNationality: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('boundaries')}</Label>
-                      <Input value={form.boundaries} onChange={e => setForm({...form, boundaries: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('property_gender')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.propertyGender} onChange={e => setForm({...form, propertyGender: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('property_type_detailed')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.propertyTypeDetailed} onChange={e => setForm({...form, propertyTypeDetailed: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('contents')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.contents} onChange={e => setForm({...form, contents: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('easements')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.easements} onChange={e => setForm({...form, easements: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Area */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('area_details')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('area_sqm')} <span className="text-danger">*</span></Label>
-                      <Input required type="number" value={form.areaSqm} onChange={e => setForm({...form, areaSqm: Number(e.target.value)})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-black text-center" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('area_olk')}</Label>
-                      <Input type="number" value={form.areaOlk} onChange={e => setForm({...form, areaOlk: Number(e.target.value)})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl text-center" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('area_donum')}</Label>
-                      <Input type="number" value={form.areaDonum} onChange={e => setForm({...form, areaDonum: Number(e.target.value)})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl text-center" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Registration Details */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('registration_details')}</h3>
-                </div>
-                <div className="space-y-4">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('registration_nature')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.registrationNature} onChange={e => setForm({...form, registrationNature: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('insurance_notes')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.insuranceNotes} onChange={e => setForm({...form, insuranceNotes: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('deed_ruling')} <span className="text-neutral-300">({t('optional')})</span></Label>
-                      <Input value={form.deedRuling} onChange={e => setForm({...form, deedRuling: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl" />
-                   </div>
-                </div>
-              </div>
-
-              {/* Sanad: Certifications */}
-              <div className="bg-white dark:bg-neutral-800 p-6 rounded-3xl shadow-sm border border-neutral-100 dark:border-neutral-700 space-y-6">
-                <div className="flex items-center gap-3 border-b border-neutral-50 dark:border-neutral-700 pb-4 mb-2">
-                   <h3 className="text-lg font-black text-neutral-900 dark:text-neutral-50 uppercase tracking-tight">{t('certifications')}</h3>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('requesting_entity_student')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.requestingEntity} onChange={e => setForm({...form, requestingEntity: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('certification_date_manual')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.certificationDate} onChange={e => setForm({...form, certificationDate: e.target.value})} placeholder="التاريخ المكتوب يدوياً" className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                   <div className="space-y-2">
-                      <Label className="font-bold text-xs uppercase tracking-widest text-neutral-400">{t('seals')} <span className="text-danger">*</span></Label>
-                      <Input required value={form.seals} onChange={e => setForm({...form, seals: e.target.value})} className="h-12 bg-neutral-50/50 border-neutral-100 rounded-xl font-bold" />
-                   </div>
-                </div>
-              </div>
+              <button
+                onClick={() => setShowModal(false)}
+                className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <ModalFooter className="p-8 bg-neutral-100 dark:bg-neutral-800/50 gap-4 mt-8 rounded-b-[32px]">
-               <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="h-12 rounded-xl px-8 font-bold text-neutral-500">{t('cancel')}</Button>
-               <Button type="submit" isLoading={saving} className="h-12 bg-primary-600 hover:bg-primary-700 text-white rounded-xl px-12 font-black shadow-lg shadow-primary-600/20">{t('record_property')}</Button>
-            </ModalFooter>
-          </form>
-        </ModalContent>
-      </Modal>
+            {/* Tab Bar */}
+            <div className="flex gap-1 px-4 py-2.5 border-b border-neutral-100 dark:border-neutral-800 overflow-x-auto flex-shrink-0">
+              {TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    "whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex-shrink-0",
+                    activeTab === tab.id
+                      ? "bg-blue-600 text-white shadow-sm"
+                      : "text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0">
+              <div className="flex-1 overflow-y-auto p-6" dir="rtl">
+
+                {/* Tab 0 — معلومات عامة */}
+                {activeTab === 0 && (
+                  <div className="space-y-4">
+                    <SH title="معلومات عامة" color="blue" />
+                    <F k="name" label="اسم/مرجع العقار" req ph="مثال: عقار المحلة 236 - الرصافة" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <F k="issuer"                  label="الجهة المصدرة"              req ph="مثال: دائرة التسجيل العقاري" />
+                      <F k="registrationDirectorate" label="مديرية التسجيل العقاري في" req ph="مثال: بغداد / الرصافة" />
+                    </div>
+                    <F k="formType" label="نوع النموذج" req ph="مثال: سند تمليك" />
+                  </div>
+                )}
+
+                {/* Tab 1 — السجل الحالي */}
+                {activeTab === 1 && (
+                  <div className="space-y-4">
+                    <SH title="وصف السجل العقاري الدائمي الحالي" color="emerald" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <F k="governorate" label="المحافظة" req ph="مثال: بغداد" />
+                      <F k="district"    label="القضاء"   ph="مثال: الرصافة" />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <F k="subDistrict" label="الناحية" ph="اختياري" />
+                      <F k="street"      label="الشارع"  ph="اختياري" />
+                    </div>
+                    <div className="grid grid-cols-3 gap-3">
+                      <F k="recordNumber" label="العدد"      req />
+                      <F k="recordDate"   label="التاريخ"    req type="date" />
+                      <F k="recordVolume" label="رقم المجلد" req />
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 2 — السجل المنقول منه */}
+                {activeTab === 2 && (
+                  <div className="space-y-4">
+                    <SH title="وصف السجل العقاري الدائمي المنقول منه" color="violet" />
+                    <div className="grid grid-cols-3 gap-3">
+                      <F k="prevRecordNumber" label="العدد"      req />
+                      <F k="prevRecordDate"   label="التاريخ"    req type="date" />
+                      <F k="prevRecordVolume" label="رقم المجلد" req />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <F k="propertySequence" label="تسلسل العقار" req />
+                      <F k="neighborhoodName" label="اسم المحلة"   req />
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-bold text-neutral-400 mb-3 uppercase tracking-wide">
+                        رقم الباب / رقم القطعة / رقم المقاطعة / اسم المقاطعة
+                        <span className="normal-case font-normal ms-1 text-neutral-300">(اختياري)</span>
+                      </p>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        <F k="doorNumber"    label="رقم الباب"    />
+                        <F k="plotNumber"    label="رقم القطعة"   />
+                        <F k="sectionNumber" label="رقم المقاطعة" />
+                        <F k="sectionName"   label="اسم المقاطعة" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 3 — تفاصيل الملكية */}
+                {activeTab === 3 && (
+                  <div className="space-y-4">
+                    <SH title="تفاصيل الملكية والعقار" color="amber" />
+                    <TA k="ownerNationality" label="المالك أو المتصرف وتابعيته" req ph="الاسم الكامل والتابعية..." />
+                    <TA k="boundaries"       label="الحدود"                     req ph="مثال: كما في الخارطة" />
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <F k="propertyGender"       label="جنس العقار"          req ph="مثال: دار، أرض، محل..." />
+                      <F k="propertyTypeDetailed" label="نوع العقار (الصنف)"  req ph="مثال: سكني، تجاري..." />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <TA k="contents"  label="المشتملات"             ph="اختياري" />
+                      <TA k="easements" label="حقوق الارتفاق والعقر" ph="اختياري" />
+                    </div>
+                    {/* Area row */}
+                    <div>
+                      <p className="text-xs font-bold text-neutral-500 mb-2">
+                        المساحة
+                        <span className="text-[11px] font-semibold text-neutral-400 ms-1">(أدخل متر مربع أو اولك)</span>
+                      </p>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-neutral-500 block">متر مربع</label>
+                          <input type="number" min="0" step="0.01" value={form.areaSqm as string} onChange={e => set("areaSqm", e.target.value)} placeholder="0.00" className={inp} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-neutral-500 block">اولك</label>
+                          <input type="number" min="0" step="0.01" value={form.areaOlk as string} onChange={e => set("areaOlk", e.target.value)} placeholder="0.00" className={inp} />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="text-xs font-semibold text-neutral-500 block">
+                            دونم <span className="text-neutral-300 font-normal">(اختياري)</span>
+                          </label>
+                          <input type="number" min="0" step="0.01" value={form.areaDonum as string} onChange={e => set("areaDonum", e.target.value)} placeholder="0.00" className={inp} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tab 4 — تفاصيل التسجيل */}
+                {activeTab === 4 && (
+                  <div className="space-y-4">
+                    <SH title="تفاصيل التسجيل" color="rose" />
+                    <TA k="registrationNature" label="ماهية التسجيل ومستنداته"                         req ph="وصف طبيعة التسجيل والوثائق المستند إليها..." />
+                    <TA k="insuranceNotes"      label="اشارات التأمينات العينية والحجز ومواقع التسجيل" ph="اختياري" />
+                    <TA k="deedRuling"          label="حكم السند"                                      ph="اختياري" />
+                  </div>
+                )}
+
+              </div>
+
+              {/* Footer */}
+              <div className="flex items-center justify-between px-6 py-4 border-t border-neutral-100 dark:border-neutral-800 flex-shrink-0 bg-neutral-50 dark:bg-neutral-800/50 rounded-b-2xl">
+                {/* Step indicators */}
+                <div className="flex gap-1.5 items-center">
+                  {TABS.map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={cn(
+                        "rounded-full transition-all",
+                        activeTab === tab.id
+                          ? "w-4 h-2 bg-blue-500"
+                          : "w-2 h-2 bg-neutral-300 dark:bg-neutral-600 hover:bg-neutral-400"
+                      )}
+                    />
+                  ))}
+                </div>
+                {/* Buttons */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                  >
+                    إلغاء
+                  </button>
+                  {activeTab > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab(activeTab - 1)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-sm font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" /> السابق
+                    </button>
+                  )}
+                  {activeTab < TABS.length - 1 && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab(activeTab + 1)}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-sm font-semibold text-neutral-700 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700 transition-colors"
+                    >
+                      التالي <ChevronLeft className="w-3.5 h-3.5 rotate-180" />
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="flex items-center gap-2 px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors shadow-sm shadow-blue-600/20"
+                  >
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                    {editing ? "حفظ التعديلات" : "تسجيل العقار"}
+                  </button>
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

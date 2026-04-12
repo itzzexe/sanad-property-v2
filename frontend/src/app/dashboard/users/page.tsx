@@ -1,303 +1,289 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Users, UserPlus, Search, Shield, ShieldCheck, Mail, Phone, 
-  Trash2, ToggleRight, ToggleLeft, Loader2, AlertCircle, X, Check,
-  UserCog, Filter
+import {
+  Users, UserPlus, Search, Shield, ShieldCheck, Mail, Phone,
+  Trash2, ToggleRight, ToggleLeft, Loader2, X, Check, UserCog
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { 
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter 
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/context/language-context";
 
-const ROLE_AR = {
-  ADMIN: 'مدير نظام',
-  OWNER: 'شريك / مالك أسهم',
-  ACCOUNTANT: 'محاسب'
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+function avatarColor(name: string) {
+  const colors = ["bg-blue-500","bg-violet-500","bg-emerald-500","bg-amber-500","bg-rose-500","bg-cyan-500","bg-indigo-500","bg-pink-500"];
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return colors[Math.abs(h) % colors.length];
+}
+
+const roleInfo: Record<string, { ar: string; en: string; color: string }> = {
+  ADMIN:      { ar: "مدير النظام", en: "System Admin", color: "bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-400" },
+  OWNER:      { ar: "المالك",      en: "Owner",         color: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400" },
+  ACCOUNTANT: { ar: "محاسب",       en: "Accountant",    color: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400" },
 };
 
+const emptyForm = { firstName: "", lastName: "", email: "", password: "", role: "OWNER", phone: "" };
+
 export default function UsersPage() {
-  const [users, setUsers] = useState<any[]>([]);
+  const { language, dir } = useLanguage();
+
+  const [users,   setUsers]   = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  
-  // New User Form State
-  const [newUser, setNewUser] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    role: "OWNER",
-    phone: ""
-  });
-  const [saving, setSaving] = useState(false);
+  const [search,  setSearch]  = useState("");
+  const [modal,   setModal]   = useState(false);
+  const [form,    setForm]    = useState({ ...emptyForm });
+  const [saving,  setSaving]  = useState(false);
+  const [err,     setErr]     = useState("");
 
-  useEffect(() => {
-    loadUsers();
-  }, []);
-
-  async function loadUsers() {
+  const load = async () => {
     setLoading(true);
     try {
       const res = await api.get("/users");
-      setUsers(res || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+      setUsers(res.data ?? res ?? []);
+    } catch { setUsers([]); }
+    finally { setLoading(false); }
+  };
 
-  async function handleAddUser(e: React.FormEvent) {
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSaving(true);
+    setSaving(true); setErr("");
     try {
-      await api.post("/users", newUser);
-      setIsAddOpen(false);
-      loadUsers();
-      setNewUser({ firstName: "", lastName: "", email: "", password: "", role: "OWNER", phone: "" });
-    } catch (err: any) {
-      alert(err.message || "فشل إضافة المستخدم");
-    } finally {
-      setSaving(false);
-    }
-  }
+      await api.post("/users", form);
+      setModal(false);
+      setForm({ ...emptyForm });
+      load();
+    } catch (e: any) {
+      setErr(e?.response?.data?.message ?? (language === "ar" ? "فشلت العملية" : "Operation failed"));
+    } finally { setSaving(false); }
+  };
 
-  async function toggleStatus(id: string, currentStatus: boolean) {
-    try {
-      await api.patch(`/users/${id}/status`, { isActive: !currentStatus });
-      loadUsers();
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  const toggleStatus = async (id: string, cur: boolean) => {
+    try { await api.patch(`/users/${id}/status`, { isActive: !cur }); load(); } catch {}
+  };
 
-  async function deleteUser(id: string) {
-    if (!confirm("هل أنت متأكد من حذف هذا المستخدم؟")) return;
-    try {
-      await api.delete(`/users/${id}`);
-      loadUsers();
-    } catch (err) {
-      console.error(err);
-    }
-  }
+  const deleteUser = async (id: string) => {
+    if (!confirm(language === "ar" ? "هل أنت متأكد من الحذف؟" : "Are you sure you want to delete?")) return;
+    try { await api.delete(`/users/${id}`); load(); } catch {}
+  };
 
-  const filteredUsers = users.filter(u => 
-    u.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-    u.lastName?.toLowerCase().includes(search.toLowerCase()) ||
-    u.email?.toLowerCase().includes(search.toLowerCase())
+  const filtered = users.filter(u =>
+    `${u.firstName} ${u.lastName} ${u.email}`.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <div className="space-y-10 page-enter p-2 md:p-6 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-5xl font-black tracking-tight text-slate-900 mb-2 leading-tight">
-            إدارة <span className="text-gradient-indigo">المستخدمين</span>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {language === "ar" ? "المستخدمون" : "Users"}
           </h1>
-          <p className="text-slate-700 text-lg font-medium flex items-center gap-2">
-            <UserCog className="w-5 h-5 text-indigo-500" />
-            التحكم في صلاحيات الفريق وإدارة الوصول إلى البيانات الحساسة
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${users.length} ${language === "ar" ? "مستخدم" : "users"}`}
           </p>
         </div>
-        
-        <div className="flex items-center gap-4">
-           <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-indigo-600 text-white font-bold h-14 px-8 rounded-2xl shadow-lg shadow-indigo-600/20 gap-3 border-none hover:scale-105 transition-all">
-                  <UserPlus className="w-5 h-5" />
-                  إضافة مستخدم جديد
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[600px] border-none shadow-2xl bg-white rounded-[32px] overflow-hidden p-0" dir="rtl">
-                 <form onSubmit={handleAddUser}>
-                   <div className="p-10 space-y-8">
-                     <DialogHeader className="text-right">
-                       <DialogTitle className="text-3xl font-black text-slate-900 leading-tight">إضافة عضو جديد</DialogTitle>
-                       <DialogDescription className="text-slate-700 font-bold">تحديد الهوية المهنية والصلاحيات التقنية للمستخدم الجديد</DialogDescription>
-                     </DialogHeader>
-
-                     <div className="grid grid-cols-2 gap-5">
-                        <div className="space-y-2">
-                          <Label className="text-slate-700 font-bold px-1">الاسم الأول</Label>
-                          <Input required value={newUser.firstName} onChange={e => setNewUser({...newUser, firstName: e.target.value})} placeholder="أحمد" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10" />
-                        </div>
-                        <div className="space-y-2">
-                          <Label className="text-slate-700 font-bold px-1">اسم العائلة</Label>
-                          <Input required value={newUser.lastName} onChange={e => setNewUser({...newUser, lastName: e.target.value})} placeholder="علي" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10" />
-                        </div>
-                     </div>
-
-                     <div className="space-y-2">
-                       <Label className="text-slate-700 font-bold px-1">البريد الإلكتروني (اسم المستخدم)</Label>
-                       <Input type="email" required value={newUser.email} onChange={e => setNewUser({...newUser, email: e.target.value})} placeholder="admin@sanad.com" dir="ltr" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl text-left font-mono font-bold focus:ring-indigo-500/10" />
-                     </div>
-
-                     <div className="grid grid-cols-2 gap-5">
-                        <div className="space-y-2">
-                          <Label className="text-slate-700 font-bold px-1 text-right">كلمة المرور</Label>
-                          <Input type="password" required value={newUser.password} onChange={e => setNewUser({...newUser, password: e.target.value})} placeholder="••••••••" dir="ltr" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl text-left font-mono focus:ring-indigo-500/10" />
-                        </div>
-                        <div className="space-y-2">
-                           <Label className="text-slate-700 font-bold px-1 text-right">رقم الهاتف</Label>
-                           <Input value={newUser.phone} onChange={e => setNewUser({...newUser, phone: e.target.value})} placeholder="07XXXXXXXXX" dir="ltr" className="h-12 bg-slate-50/50 border-slate-100 rounded-xl text-left font-mono focus:ring-indigo-500/10" />
-                        </div>
-                     </div>
-
-                     <div className="space-y-2">
-                        <Label className="text-slate-700 font-bold px-1">نوع الصلاحية الإدارية</Label>
-                        <Select value={newUser.role} onValueChange={v => setNewUser({...newUser, role: v})} dir="rtl">
-                          <SelectTrigger className="h-14 bg-slate-50/50 border-slate-100 rounded-xl font-bold focus:ring-indigo-500/10">
-                             <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border-slate-100 rounded-xl shadow-xl" dir="rtl">
-                             <SelectItem value="ADMIN" className="font-bold py-3"><div className="flex items-center gap-2 text-indigo-600"><ShieldCheck className="w-4 h-4" /> مدير نظام</div></SelectItem>
-                             <SelectItem value="OWNER" className="font-bold py-3">مالك عقار</SelectItem>
-                             <SelectItem value="ACCOUNTANT" className="font-bold py-3">محاسب</SelectItem>
-                          </SelectContent>
-                        </Select>
-                     </div>
-                   </div>
-
-                   <DialogFooter className="p-10 bg-slate-50 flex gap-4 mt-6">
-                      <Button variant="ghost" type="button" onClick={() => setIsAddOpen(false)} className="flex-1 font-bold h-12 text-slate-600 rounded-xl">إلغاء</Button>
-                      <Button type="submit" disabled={saving} className="flex-1 bg-indigo-600 text-white hover:bg-indigo-700 font-black rounded-xl h-12 shadow-lg shadow-indigo-600/20">
-                        {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5 mr-2" />}
-                        تأكيد الإضافة
-                      </Button>
-                   </DialogFooter>
-                 </form>
-              </DialogContent>
-           </Dialog>
-        </div>
+        <button onClick={() => { setModal(true); setForm({ ...emptyForm }); setErr(""); }}
+          className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
+          <UserPlus className="w-4 h-4" />
+          {language === "ar" ? "مستخدم جديد" : "New User"}
+        </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-end">
-        <div className="relative flex-1 group">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
-          <input 
-            placeholder="بحث عن مستخدم بالاسم أو البريد..." 
-            className="w-full pr-12 h-14 bg-white border border-slate-100 shadow-premium rounded-2xl text-lg font-bold placeholder:text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all font-bold" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
-        </div>
+      {/* Search */}
+      <div className="relative max-w-sm">
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder={language === "ar" ? "بحث..." : "Search..."}
+          className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 ps-9 pe-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
       </div>
 
-      <Card className="border-none shadow-premium bg-white rounded-[32px] overflow-hidden">
-        <Table>
-          <TableHeader className="bg-slate-50/50">
-            <TableRow className="hover:bg-transparent border-slate-100">
-              <TableHead className="text-right py-6 text-slate-900 font-black">المستخدم</TableHead>
-              <TableHead className="text-center py-6 text-slate-900 font-black">الصلاحية</TableHead>
-              <TableHead className="text-right py-6 text-slate-900 font-black">التواصل</TableHead>
-              <TableHead className="text-right py-6 text-slate-900 font-black">تاريخ الانضمام</TableHead>
-              <TableHead className="text-center py-6 text-slate-900 font-black">الحالة</TableHead>
-              <TableHead className="text-left py-6 text-slate-900 font-black pl-8">الإجراءات</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 3 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={6} className="h-20 animate-pulse bg-slate-50/20" />
-                </TableRow>
-              ))
-            ) : filteredUsers.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-64 text-center text-slate-600 italic">لا يوجد مستخدمين حالياً</TableCell>
-              </TableRow>
-            ) : (
-              filteredUsers.map((user) => (
-                <TableRow key={user.id} className="hover:bg-slate-50/40 transition-colors border-slate-50 group">
-                  <TableCell className="py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center font-black text-indigo-600 text-lg shadow-sm group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                        {user.firstName[0]}
-                      </div>
-                      <div>
-                        <p className="font-black text-slate-900 text-base group-hover:text-indigo-600 transition-colors">{user.firstName} {user.lastName}</p>
-                        <p className="text-[10px] text-slate-600 font-bold flex items-center gap-1 mt-0.5">
-                           <Shield className="w-3 h-3 text-indigo-400" />
-                           ID: {user.id.split('-')[0].toUpperCase()}
-                        </p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                     <Badge className={cn(
-                       "px-4 py-1.5 font-bold text-[10px] uppercase rounded-xl border-none shadow-none",
-                       user.role === 'ADMIN' ? "bg-slate-900 text-white" : 
-                       user.role === 'ACCOUNTANT' ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-600"
-                     )}>
-                        {ROLE_AR[user.role as keyof typeof ROLE_AR] || user.role}
-                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2 text-xs text-slate-700 font-bold">
-                        <Mail className="w-3 h-3 text-indigo-400" />
-                        {user.email}
-                      </div>
-                      {user.phone && (
-                        <div className="flex items-center gap-2 text-xs text-slate-700 font-mono font-bold">
-                          <Phone className="w-3 h-3 text-indigo-400" />
-                          {user.phone}
+      {/* Table */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(5)].map((_,i) => <Sk key={i} className="h-16" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <Users className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">
+            {language === "ar" ? "لا يوجد مستخدمون" : "No users found"}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-x-auto">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "المستخدم" : "User"}</th>
+                <th>{language === "ar" ? "الدور" : "Role"}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "بريد / هاتف" : "Email / Phone"}</th>
+                <th>{language === "ar" ? "الحالة" : "Status"}</th>
+                <th>{language === "ar" ? "الانضمام" : "Joined"}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((u: any) => {
+                const initials = `${(u.firstName ?? "")[0] ?? ""}${(u.lastName ?? "")[0] ?? ""}`.toUpperCase();
+                const bg = avatarColor(`${u.firstName}${u.lastName}`);
+                const role = roleInfo[u.role] ?? { ar: u.role, en: u.role, color: "bg-neutral-100 text-neutral-600" };
+                return (
+                  <tr key={u.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center text-white text-sm font-black flex-shrink-0", bg)}>
+                          {initials}
                         </div>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600 font-bold">
-                     {new Date(user.createdAt).toLocaleDateString('ar-IQ')}
-                  </TableCell>
-                  <TableCell className="text-center">
-                     <Badge className={cn(
-                       "rounded-full px-5 h-8 font-black text-[9px] items-center gap-2 border-none shadow-none",
-                       user.isActive ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-600"
-                     )}>
-                        <div className={cn("w-1.5 h-1.5 rounded-full animate-pulse", user.isActive ? "bg-emerald-500" : "bg-rose-500")} />
-                        {user.isActive ? 'حساب نشط' : 'معطل مؤقتاً'}
-                     </Badge>
-                  </TableCell>
-                  <TableCell className="pl-8 text-left">
-                     <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => toggleStatus(user.id, user.isActive)}
-                          className={cn(
-                            "h-10 w-10 rounded-xl transition-all",
-                            user.isActive ? "text-rose-600 hover:bg-rose-50" : "text-emerald-600 hover:bg-emerald-50"
-                          )}
-                        >
-                           {user.isActive ? <ToggleRight className="w-5 h-5" /> : <ToggleLeft className="w-5 h-5" />}
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon" 
-                          onClick={() => deleteUser(user.id)}
-                          className="h-10 w-10 rounded-xl text-slate-600 hover:bg-rose-50 hover:text-rose-600 transition-all"
-                        >
-                           <Trash2 className="w-5 h-5" />
-                        </Button>
-                     </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+                        <div>
+                          <p className="text-sm font-semibold text-neutral-900 dark:text-white">{u.firstName} {u.lastName}</p>
+                          <p className="text-[11px] text-neutral-400">{u.id?.split('-')[0].toUpperCase()}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <span className={cn("inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1 rounded-full", role.color)}>
+                        {u.role === "ADMIN" ? <ShieldCheck className="w-3 h-3" /> : <Shield className="w-3 h-3" />}
+                        {role[language as "ar"|"en"]}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="space-y-0.5">
+                        <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                          <Mail className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                          <span className="truncate max-w-[160px]">{u.email}</span>
+                        </div>
+                        {u.phone && (
+                          <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                            <Phone className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                            <span>{u.phone}</span>
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={cn("inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full",
+                        u.isActive ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-500")}>
+                        <span className={cn("w-1.5 h-1.5 rounded-full", u.isActive ? "bg-emerald-500" : "bg-neutral-400")} />
+                        {u.isActive ? (language === "ar" ? "نشط" : "Active") : (language === "ar" ? "موقف" : "Inactive")}
+                      </span>
+                    </td>
+                    <td className="text-xs text-neutral-500 dark:text-neutral-400">
+                      {new Date(u.createdAt).toLocaleDateString(language === "ar" ? "ar-IQ" : "en-US")}
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-1 justify-end">
+                        <button onClick={() => toggleStatus(u.id, u.isActive)}
+                          className={cn("p-1.5 rounded-lg transition-colors",
+                            u.isActive ? "text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30" : "text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30")}>
+                          {u.isActive ? <ToggleRight className="w-4 h-4" /> : <ToggleLeft className="w-4 h-4" />}
+                        </button>
+                        <button onClick={() => deleteUser(u.id)}
+                          className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add User Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(false)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-md border border-neutral-100 dark:border-neutral-800 scale-in" dir={dir}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center">
+                  <UserCog className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                </div>
+                <h2 className="font-bold text-neutral-900 dark:text-white text-sm">
+                  {language === "ar" ? "إضافة مستخدم جديد" : "Add New User"}
+                </h2>
+              </div>
+              <button onClick={() => setModal(false)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      {language === "ar" ? "الاسم الأول" : "First Name"}
+                    </label>
+                    <input required value={form.firstName} onChange={e => setForm({...form, firstName: e.target.value})}
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      {language === "ar" ? "اسم العائلة" : "Last Name"}
+                    </label>
+                    <input required value={form.lastName} onChange={e => setForm({...form, lastName: e.target.value})}
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                    {language === "ar" ? "البريد الإلكتروني" : "Email"}
+                  </label>
+                  <input required type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} dir="ltr"
+                    className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      {language === "ar" ? "كلمة المرور" : "Password"}
+                    </label>
+                    <input required type="password" value={form.password} onChange={e => setForm({...form, password: e.target.value})} dir="ltr"
+                      placeholder="••••••••"
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                      {language === "ar" ? "رقم الهاتف" : "Phone"}
+                    </label>
+                    <input value={form.phone} onChange={e => setForm({...form, phone: e.target.value})} dir="ltr"
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                    {language === "ar" ? "الدور" : "Role"}
+                  </label>
+                  <select value={form.role} onChange={e => setForm({...form, role: e.target.value})}
+                    className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none">
+                    <option value="ADMIN">{language === "ar" ? "مدير النظام" : "System Admin"}</option>
+                    <option value="OWNER">{language === "ar" ? "المالك" : "Owner"}</option>
+                    <option value="ACCOUNTANT">{language === "ar" ? "محاسب" : "Accountant"}</option>
+                  </select>
+                </div>
+
+                {err && <p className="text-sm text-red-600 dark:text-red-400">{err}</p>}
+              </div>
+              <div className="flex gap-3 px-6 py-4 border-t border-neutral-100 dark:border-neutral-800">
+                <button type="button" onClick={() => setModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                  {language === "ar" ? "إلغاء" : "Cancel"}
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold transition-colors">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {language === "ar" ? "إضافة" : "Add User"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

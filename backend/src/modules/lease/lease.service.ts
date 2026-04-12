@@ -73,22 +73,33 @@ export class LeaseService {
   }
 
   private async generateInstallments(tx: any, lease: any) {
-    const start = new Date(lease.startDate);
-    const end = new Date(lease.endDate);
-    const installments = [];
+    // Use UTC midnight to avoid timezone-related off-by-one errors
+    const toUTCMidnight = (d: Date) =>
+      new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+
+    const start = toUTCMidnight(new Date(lease.startDate));
+    const end   = toUTCMidnight(new Date(lease.endDate));
+    const installments: any[] = [];
 
     let current = new Date(start);
     const freqMonths = this.getFrequencyMonths(lease.paymentFrequency);
 
-    while (current < end) {
+    // Use <= so the last period boundary is included when it lands exactly on endDate
+    while (current <= end) {
       installments.push({
-        leaseId: lease.id,
-        dueDate: new Date(current),
-        amount: lease.rentAmount,
+        leaseId:  lease.id,
+        dueDate:  new Date(current),
+        amount:   lease.rentAmount,
         currency: lease.currency,
-        status: 'PENDING' as const,
+        status:   'PENDING' as const,
       });
-      current.setMonth(current.getMonth() + freqMonths);
+
+      const next = new Date(current);
+      next.setUTCMonth(next.getUTCMonth() + freqMonths);
+
+      // Guard against infinite loop if setUTCMonth didn't advance (edge case)
+      if (next <= current) break;
+      current = next;
     }
 
     if (installments.length > 0) {

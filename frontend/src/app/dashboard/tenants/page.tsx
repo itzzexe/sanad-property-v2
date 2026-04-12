@@ -1,424 +1,330 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { useState, useEffect } from "react";
+import {
+  Users, Plus, Search, Edit, Trash2,
+  Mail, Phone, MapPin, FileText,
+  Loader2, X, Eye
+} from "lucide-react";
 import { api } from "@/lib/api";
-import { Plus, Search, Users, Loader2, Trash2, Mail, Phone, MapPin, UserCheck, Paperclip, Eye, FileText, Download, Upload } from "lucide-react";
-import { AttachmentManager } from "@/components/shared/attachment-manager";
-
-import { useLanguage } from "@/context/language-context";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/context/language-context";
+
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+function initials(firstName: string, lastName: string) {
+  return `${firstName?.[0] ?? ""}${lastName?.[0] ?? ""}`.toUpperCase();
+}
+
+const COLORS = [
+  "bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400",
+  "bg-violet-100 text-violet-700 dark:bg-violet-950/40 dark:text-violet-400",
+  "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400",
+  "bg-amber-100 text-amber-700 dark:bg-amber-950/40 dark:text-amber-400",
+  "bg-rose-100 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400",
+];
+const avatarColor = (name: string) => COLORS[name.charCodeAt(0) % COLORS.length];
 
 export default function TenantsPage() {
-  const { language, t, dir } = useLanguage();
-  const [tenants, setTenants] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({ firstName: "", lastName: "", email: "", phone: "", idType: "بطاقة وطنية", idNumber: "", nationality: "عراقي", address: "" });
-  const [saving, setSaving] = useState(false);
-  const [selectedTenant, setSelectedTenant] = useState<any>(null);
-  const [showTenantDetails, setShowTenantDetails] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-  const [creationFiles, setCreationFiles] = useState<File[]>([]);
-  const creationFilesInputRef = useRef<HTMLInputElement>(null);
-  const [importing, setImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { language, dir } = useLanguage();
 
-  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const [tenants,   setTenants]   = useState<any[]>([]);
+  const [loading,   setLoading]   = useState(true);
+  const [search,    setSearch]    = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [viewing,   setViewing]   = useState<any>(null);
+  const [editing,   setEditing]   = useState<any>(null);
+  const [saving,    setSaving]    = useState(false);
+  const [deleting,  setDeleting]  = useState<string | null>(null);
 
-    setImporting(true);
-    const formData = new FormData();
-    formData.append('file', file);
+  const emptyForm = {
+    firstName:"", lastName:"", email:"", phone:"",
+    idType:"بطاقة وطنية", idNumber:"", nationality:"عراقي", address:"",
+  };
+  const [form, setForm] = useState({ ...emptyForm });
 
+  const load = async () => {
+    setLoading(true);
     try {
-      const res = await api.post("/tenants/import", formData);
-      alert(language === 'ar' ? `تم استيراد ${res.successCount || 0} سجل بنجاح.` : `Imported ${res.successCount || 0} tenants.`);
-      load();
-    } catch (err: any) {
-      alert(err.message || "Error uploading file");
-    } finally {
-      setImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    }
-  }
+      const res = await api.get(`/tenants?search=${encodeURIComponent(search)}&limit=50`);
+      setTenants(res.data ?? []);
+    } catch { setTenants([]); }
+    finally { setLoading(false); }
+  };
 
   useEffect(() => { load(); }, [search]);
-  
-  async function load() {
+
+  const openCreate = () => { setEditing(null); setForm({ ...emptyForm }); setShowModal(true); };
+  const openEdit   = (t: any) => {
+    setEditing(t);
+    setForm({
+      firstName: t.firstName, lastName: t.lastName, email: t.email, phone: t.phone,
+      idType: t.idType ?? "بطاقة وطنية", idNumber: t.idNumber ?? "",
+      nationality: t.nationality ?? "عراقي", address: t.address ?? "",
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault(); setSaving(true);
     try {
-      const res = await api.get(`/tenants?search=${search}&limit=50`);
-      setTenants(res.data || []);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
-  }
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const res = await api.post("/tenants", form);
-      const tenantId = res.id;
-
-      if (creationFiles.length > 0) {
-        for (const file of creationFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('entityType', 'TENANT');
-          formData.append('entityId', tenantId);
-          await api.post("/attachments/upload", formData);
-        }
-      }
-
-      setShowCreate(false);
-      setCreationFiles([]);
-      setForm({ firstName: "", lastName: "", email: "", phone: "", idType: "بطاقة وطنية", idNumber: "", nationality: "عراقي", address: "" });
-      load();
+      if (editing) await api.patch(`/tenants/${editing.id}`, form);
+      else         await api.post("/tenants", form);
+      setShowModal(false); load();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
-  }
+  };
 
-  async function handleDelete(id: string) {
-    if (!confirm(language === 'ar' ? "هل أنت متأكد من حذف هذا المستأجر؟" : "Are you sure you want to delete this tenant?")) return;
+  const handleDelete = async (id: string) => {
+    if (!confirm(language === "ar" ? "حذف هذا المستأجر نهائياً؟" : "Delete this tenant permanently?")) return;
+    setDeleting(id);
     try { await api.delete(`/tenants/${id}`); load(); }
     catch (err: any) { alert(err.message); }
-  }
+    finally { setDeleting(null); }
+  };
+
+  const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
 
   return (
-    <div className={cn("space-y-10 page-enter p-2 md:p-6 pb-20 font-arabic", language === 'ar' ? "text-right" : "")} dir={dir}>
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-5xl font-black tracking-tight text-neutral-900 dark:text-neutral-50 mb-2 leading-tight">
-             {t('tenants_registry').split(' ')[0]} <span className="text-primary-500">{t('tenants_registry').split(' ')[1]}</span>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {language === "ar" ? "المستأجرون" : "Tenants"}
           </h1>
-          <p className="text-neutral-600 dark:text-neutral-400 text-lg font-medium flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary-500" />
-            {t('tenants_description')}
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${tenants.length} ${language === "ar" ? "مستأجر مسجّل" : "tenants registered"}`}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <input type="file" accept=".xlsx, .xls" className="hidden" ref={fileInputRef} onChange={handleImport} />
-          <Button disabled={importing} onClick={() => fileInputRef.current?.click()} variant="outline" className="font-bold h-14 px-6 rounded-2xl gap-2 transition-all">
-            {importing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Upload className="w-5 h-5" />} 
-            {t('import_excel')}
-          </Button>
-          <Button onClick={() => setShowCreate(true)} className="bg-primary-600 text-white hover:bg-primary-700 font-bold h-14 px-8 rounded-2xl shadow-lg shadow-primary-600/20 gap-3 border-none hover:scale-105 transition-all">
-            <Plus className="w-5 h-5" /> {t('add_tenant')}
-          </Button>
-        </div>
+        <button onClick={openCreate}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold shadow-sm shadow-blue-600/20 transition-all self-start">
+          <Plus className="w-4 h-4" />
+          {language === "ar" ? "إضافة مستأجر" : "Add Tenant"}
+        </button>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-6 items-end">
-        <div className="relative flex-1 group">
-          <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
-          <input 
-            placeholder={t('search_tenants_placeholder')} 
-            className="w-full pr-12 h-14 bg-white border border-slate-100 shadow-premium rounded-2xl text-lg font-bold placeholder:text-slate-700 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all" 
-            value={search} 
-            onChange={e => setSearch(e.target.value)} 
-          />
-        </div>
+      {/* Search */}
+      <div className="relative max-w-md">
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+        <input value={search} onChange={e => setSearch(e.target.value)}
+          placeholder={language === "ar" ? "ابحث بالاسم أو البريد أو الهاتف..." : "Search by name, email, phone..."}
+          className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 ps-9 pe-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
       </div>
 
+      {/* Table */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 gap-4">
-          <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
-          <p className="font-bold text-slate-600 animate-pulse">{t('loading_tenants')}</p>
-        </div>
+        <div className="space-y-3">{[...Array(5)].map((_, i) => <Sk key={i} className="h-16" />)}</div>
       ) : tenants.length === 0 ? (
-        <Card className="py-24 text-center border-none shadow-premium bg-white rounded-[40px]">
-          <Users className="w-20 h-20 mx-auto text-slate-600 mb-6" />
-          <h3 className="text-2xl font-black text-slate-900">{t('no_tenants_title')}</h3>
-          <p className="text-slate-600 mt-2 font-medium">{t('no_tenants_desc')}</p>
-        </Card>
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <Users className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">
+            {language === "ar" ? "لا يوجد مستأجرون بعد" : "No tenants yet"}
+          </p>
+          <button onClick={openCreate}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />
+            {language === "ar" ? "أضف أول مستأجر" : "Add your first tenant"}
+          </button>
+        </div>
       ) : (
-        <Card className="border-none shadow-premium bg-white rounded-[32px] overflow-hidden">
-          <Table>
-            <TableHeader className="bg-slate-50/50">
-              <TableRow className="hover:bg-transparent border-slate-100">
-                <TableHead className="text-right py-6 text-slate-900 font-black">{t('tenant')}</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black">{t('contact_info')}</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black">{t('legal_docs')}</TableHead>
-                <TableHead className="text-right py-6 text-slate-900 font-black text-center">{t('leases')}</TableHead>
-                <TableHead className="text-left py-6 text-slate-900 font-black pl-8">{t('actions')}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-x-auto">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "المستأجر" : "Tenant"}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{language === "ar" ? "بيانات التواصل" : "Contact"}</th>
+                <th>{language === "ar" ? "الهوية" : "ID"}</th>
+                <th>{language === "ar" ? "العقود" : "Leases"}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
               {tenants.map((tenant: any) => (
-                <TableRow key={tenant.id} className="hover:bg-slate-50/40 transition-colors border-slate-50 group">
-                  <TableCell className="py-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-600 text-lg font-black group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300 shadow-sm">
-                        {tenant.firstName[0]}
+                <tr key={tenant.id}>
+                  <td>
+                    <div className="flex items-center gap-3">
+                      <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0", avatarColor(tenant.firstName))}>
+                        {initials(tenant.firstName, tenant.lastName)}
                       </div>
                       <div>
-                        <p className="font-black text-slate-900 text-base group-hover:text-indigo-600 transition-colors">{tenant.firstName} {tenant.lastName}</p>
-                        <p className="text-xs text-slate-600 font-bold flex items-center gap-1">
-                          <MapPin className="w-3 h-3" />
-                          {tenant.address || t('address_not_available')}
+                        <p className="font-semibold text-neutral-900 dark:text-white">
+                          {tenant.firstName} {tenant.lastName}
                         </p>
+                        {tenant.address && (
+                          <p className="text-xs text-neutral-400 flex items-center gap-1">
+                            <MapPin className="w-3 h-3" /> {tenant.address}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="space-y-1 font-bold">
-                      <div className="flex items-center gap-2 text-xs text-slate-700">
-                        <Mail className="w-3.5 h-3.5 text-indigo-400" /> {tenant.email}
+                  </td>
+                  <td>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                        <Mail className="w-3.5 h-3.5 text-neutral-400" /> {tenant.email}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-slate-700 font-mono">
-                        <Phone className="w-3.5 h-3.5 text-indigo-400" /> {tenant.phone}
+                      <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400 font-mono">
+                        <Phone className="w-3.5 h-3.5 text-neutral-400" /> {tenant.phone}
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {tenant.idType ? (
-                       <div className="bg-slate-50 px-3 py-2 rounded-xl border border-slate-100 inline-flex flex-col items-start gap-1">
-                         <span className="text-[9px] text-slate-600 font-black uppercase text-right w-full">{tenant.idType}</span>
-                         <span className="font-mono font-black text-slate-900 text-xs">{tenant.idNumber}</span>
-                       </div>
-                    ) : "—"}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex items-center justify-center gap-2">
-                       <UserCheck className="w-4 h-4 text-emerald-500" />
-                       <span className="font-black text-slate-900">{tenant.leases?.length || 0}</span>
+                  </td>
+                  <td>
+                    {tenant.idNumber ? (
+                      <div className="text-xs">
+                        <p className="text-[10px] text-neutral-400 font-semibold uppercase">{tenant.idType}</p>
+                        <p className="font-mono font-bold text-neutral-700 dark:text-neutral-300">{tenant.idNumber}</p>
+                      </div>
+                    ) : <span className="text-neutral-300">—</span>}
+                  </td>
+                  <td>
+                    <span className={cn(
+                      "inline-flex items-center gap-1 text-xs font-bold px-2 py-0.5 rounded-full border",
+                      (tenant.leases?.length ?? 0) > 0 ? "badge-success" : "badge-neutral"
+                    )}>
+                      <FileText className="w-3 h-3" />
+                      {tenant.leases?.length ?? 0}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setViewing(tenant)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => openEdit(tenant)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(tenant.id)} disabled={deleting === tenant.id}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors">
+                        {deleting === tenant.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                      </button>
                     </div>
-                  </TableCell>
-                  <TableCell className="pl-8 text-left">
-                    <div className="flex items-center justify-end gap-2">
-                       <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-slate-100 text-slate-600" onClick={() => {
-                          setSelectedTenant(tenant);
-                          setShowTenantDetails(true);
-                        }}>
-                        <Eye className="w-4.5 h-4.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-indigo-50 text-slate-600 hover:text-indigo-600 transition-colors" onClick={() => {
-                          setSelectedTenant(tenant);
-                          setShowAttachments(true);
-                        }}>
-                        <Paperclip className="w-4.5 h-4.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="w-9 h-9 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-colors" onClick={() => handleDelete(tenant.id)}>
-                        <Trash2 className="w-4.5 h-4.5" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                  </td>
+                </tr>
               ))}
-            </TableBody>
-          </Table>
-        </Card>
+            </tbody>
+          </table>
+        </div>
       )}
 
-      {/* Create Dialog */}
-      <Dialog open={showCreate} onOpenChange={setShowCreate}>
-        <DialogContent className="sm:max-w-[550px] border-none shadow-2xl bg-white dark:bg-neutral-900 rounded-[32px] overflow-hidden p-0">
-          <form onSubmit={handleCreate} dir={dir}>
-            <div className="p-8 space-y-6">
-              <DialogHeader className={cn("text-right", language === 'en' ? "text-left" : "")}>
-                <DialogTitle className="text-3xl font-black text-slate-900 dark:text-neutral-50 leading-tight">{t('register_tenant')}</DialogTitle>
-                <DialogDescription className="text-slate-700 dark:text-neutral-400 font-bold">{t('portfolio_description')}</DialogDescription>
-              </DialogHeader>
-
-              <div className="grid grid-cols-2 gap-5 pt-4">
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('first_name')}</Label>
-                  <Input required value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} placeholder="..." className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl font-bold focus:ring-indigo-500/10" />
+      {/* Create / Edit Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 scale-in max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+              <h2 className="font-bold text-neutral-900 dark:text-white">
+                {editing ? (language === "ar" ? "تعديل بيانات المستأجر" : "Edit Tenant") : (language === "ar" ? "تسجيل مستأجر جديد" : "Register New Tenant")}
+              </h2>
+              <button onClick={() => setShowModal(false)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleSave} className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "الاسم الأول *" : "First Name *"}</label>
+                  <input required value={form.firstName} onChange={e => setForm({ ...form, firstName: e.target.value })} className={inp} />
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('last_name')}</Label>
-                  <Input required value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} placeholder="..." className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl font-bold focus:ring-indigo-500/10" />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "الاسم الأخير *" : "Last Name *"}</label>
+                  <input required value={form.lastName} onChange={e => setForm({ ...form, lastName: e.target.value })} className={inp} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "البريد الإلكتروني *" : "Email *"}</label>
+                  <input required type="email" dir="ltr" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} className={inp} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "رقم الهاتف *" : "Phone *"}</label>
+                  <input required dir="ltr" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} className={inp} placeholder="+964..." />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "نوع الهوية" : "ID Type"}</label>
+                  <select value={form.idType} onChange={e => setForm({ ...form, idType: e.target.value })} className={inp}>
+                    <option value="بطاقة وطنية">بطاقة وطنية</option>
+                    <option value="جواز سفر">جواز سفر</option>
+                    <option value="هوية أحوال مدنية">هوية أحوال مدنية</option>
+                    <option value="Passport">Passport</option>
+                    <option value="National ID">National ID</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "رقم الهوية" : "ID Number"}</label>
+                  <input dir="ltr" value={form.idNumber} onChange={e => setForm({ ...form, idNumber: e.target.value })} className={inp} />
+                </div>
+                <div className="col-span-2 space-y-1.5">
+                  <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "العنوان" : "Address"}</label>
+                  <input value={form.address} onChange={e => setForm({ ...form, address: e.target.value })} className={inp} />
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('email')}</Label>
-                <Input required type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })} placeholder="..." className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl text-left font-mono font-bold" />
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setShowModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                  {language === "ar" ? "إلغاء" : "Cancel"}
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  {editing ? (language === "ar" ? "حفظ التعديلات" : "Save") : (language === "ar" ? "تسجيل المستأجر" : "Register Tenant")}
+                </button>
               </div>
+            </form>
+          </div>
+        </div>
+      )}
 
-              <div className="space-y-2">
-                <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('phone')}</Label>
-                <Input required value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })} placeholder="..." className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl text-left font-mono font-bold" />
-              </div>
-
-              <div className="grid grid-cols-2 gap-5">
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('id_type')}</Label>
-                  <Input value={form.idType} onChange={e => setForm({ ...form, idType: e.target.value })} placeholder="..." className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl font-bold" />
+      {/* View Details Modal */}
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewing(null)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-md border border-neutral-100 dark:border-neutral-800 scale-in">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              <h2 className="font-bold text-neutral-900 dark:text-white">{language === "ar" ? "ملف المستأجر" : "Tenant Profile"}</h2>
+              <button onClick={() => setViewing(null)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="flex items-center gap-4">
+                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black", avatarColor(viewing.firstName))}>
+                  {initials(viewing.firstName, viewing.lastName)}
                 </div>
-                <div className="space-y-2">
-                  <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1">{t('id_number')}</Label>
-                  <Input value={form.idNumber} onChange={e => setForm({ ...form, idNumber: e.target.value })} className="h-12 bg-slate-50/50 dark:bg-neutral-800 border-slate-100 dark:border-neutral-700 rounded-xl font-mono font-bold" />
+                <div>
+                  <h3 className="text-lg font-black text-neutral-900 dark:text-white">{viewing.firstName} {viewing.lastName}</h3>
+                  <p className="text-sm text-neutral-500">{viewing.nationality}</p>
                 </div>
               </div>
-
-              <div className="space-y-4">
-                <Label className="text-slate-700 dark:text-neutral-400 font-bold px-1 flex items-center gap-2">
-                  <Paperclip className="w-4 h-4 text-indigo-500" /> {t('tenant_attachments')}
-                </Label>
-                <div className="bg-slate-50 dark:bg-neutral-800/50 p-6 rounded-2xl border border-dashed border-slate-200 dark:border-neutral-700">
-                  <input 
-                    type="file" 
-                    multiple 
-                    className="hidden" 
-                    ref={creationFilesInputRef}
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      setCreationFiles(prev => [...prev, ...files]);
-                    }}
-                    accept="image/*,application/pdf"
-                  />
-                  <div className="flex flex-col items-center justify-center text-center space-y-2">
-                    <Button 
-                      type="button" 
-                      onClick={() => creationFilesInputRef.current?.click()}
-                      variant="ghost"
-                      className="text-indigo-600 font-bold hover:bg-white dark:hover:bg-neutral-900"
-                    >
-                      <Plus className="w-4 h-4 ml-1" /> {t('add_documents')}
-                    </Button>
-                  </div>
-
-                  {creationFiles.length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      {creationFiles.map((file, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-white dark:bg-neutral-800 rounded-xl border border-slate-100 dark:border-neutral-700">
-                          <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
-                          <Button 
-                            type="button" 
-                            variant="ghost" 
-                            size="icon" 
-                            onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
-                            className="text-rose-500 h-7 w-7"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </Button>
-                        </div>
-                      ))}
+              <div className="space-y-3 rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                {[
+                  { icon: Mail,  label: language === "ar" ? "البريد" : "Email", value: viewing.email },
+                  { icon: Phone, label: language === "ar" ? "الهاتف" : "Phone", value: viewing.phone },
+                  { icon: MapPin,label: language === "ar" ? "العنوان" : "Address", value: viewing.address || "—" },
+                  { icon: FileText, label: viewing.idType || "ID", value: viewing.idNumber || "—" },
+                ].map((row, i) => (
+                  <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-neutral-50 dark:border-neutral-800 last:border-0">
+                    <row.icon className="w-4 h-4 text-neutral-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-neutral-400 font-semibold uppercase">{row.label}</p>
+                      <p className="text-sm font-semibold text-neutral-900 dark:text-white">{row.value}</p>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ))}
+              </div>
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-xl">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                  {language === "ar"
+                    ? `${viewing.leases?.length ?? 0} عقد إيجار مسجّل في النظام`
+                    : `${viewing.leases?.length ?? 0} lease(s) registered in the system`}
+                </p>
               </div>
             </div>
-
-            <div className="p-8 bg-slate-50 dark:bg-neutral-800/80 flex gap-4 mt-4">
-              <Button type="button" variant="ghost" onClick={() => setShowCreate(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-600 dark:text-neutral-400">{t('cancel')}</Button>
-              <Button type="submit" disabled={saving} className="flex-1 h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black shadow-lg shadow-indigo-600/20">
-                {saving ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Plus className="w-5 h-5 mr-2" />}
-                {t('save_tenant_data')}
-              </Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Tenant Details Dialog */}
-      <Dialog open={showTenantDetails} onOpenChange={setShowTenantDetails}>
-        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl bg-white dark:bg-neutral-900 rounded-[32px] overflow-hidden p-0">
-           <div className="p-8 space-y-8" dir={dir}>
-              <DialogHeader className={cn("text-right", language === 'en' ? "text-left" : "")}>
-                <div className="flex items-center gap-4">
-                   <div className="w-16 h-16 rounded-3xl bg-indigo-600 flex items-center justify-center text-white shadow-lg shadow-indigo-600/20">
-                     <Users className="w-8 h-8" />
-                   </div>
-                   <div>
-                     <DialogTitle className="text-3xl font-black text-slate-900 dark:text-neutral-50 leading-tight">{t('tenant_profile')}</DialogTitle>
-                     <p className="text-indigo-600 font-black text-sm">{selectedTenant?.firstName} {selectedTenant?.lastName}</p>
-                   </div>
-                </div>
-              </DialogHeader>
-
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <div className="p-4 bg-slate-50 dark:bg-neutral-800 rounded-2xl border border-slate-100 dark:border-neutral-700 text-center">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">{t('first_name')}</p>
-                    <p className="font-black text-slate-900 dark:text-neutral-50">{selectedTenant?.firstName}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50 dark:bg-neutral-800 rounded-2xl border border-slate-100 dark:border-neutral-700 text-center">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">{t('last_name')}</p>
-                    <p className="font-black text-slate-900 dark:text-neutral-50">{selectedTenant?.lastName}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50 dark:bg-neutral-800 rounded-2xl border border-slate-100 dark:border-neutral-700 text-center col-span-2">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">{t('phone')}</p>
-                    <p className="font-black text-slate-900 dark:text-neutral-50 text-lg">{selectedTenant?.phone}</p>
-                 </div>
-              </div>
-
-              <div className="space-y-4">
-                  <div className="p-5 bg-white dark:bg-neutral-800 rounded-3xl border border-slate-100 dark:border-neutral-700 shadow-sm flex items-center justify-between">
-                     <span className="text-sm font-bold text-slate-600 dark:text-neutral-400">{t('email')}:</span>
-                     <span className="font-bold text-slate-900 dark:text-neutral-50">{selectedTenant?.email}</span>
-                  </div>
-                  <div className="p-5 bg-white dark:bg-neutral-800 rounded-3xl border border-slate-100 dark:border-neutral-700 shadow-sm flex items-center justify-between">
-                     <span className="text-sm font-bold text-slate-600 dark:text-neutral-400">{t('id_number')} ({selectedTenant?.idType}):</span>
-                     <span className="font-black text-indigo-600 font-mono">{selectedTenant?.idNumber}</span>
-                  </div>
-                  <div className="p-5 bg-white dark:bg-neutral-800 rounded-3xl border border-slate-100 dark:border-neutral-700 shadow-sm">
-                     <p className="text-[10px] text-slate-500 font-black uppercase mb-2">{t('address')}:</p>
-                     <p className="font-bold text-slate-800 dark:text-neutral-200">{selectedTenant?.address || t('address_not_available')}</p>
-                  </div>
-              </div>
-
-              <div className="p-5 bg-indigo-50/30 dark:bg-indigo-900/10 rounded-3xl border border-indigo-100/50">
-                 <p className="text-[10px] text-indigo-600 font-black uppercase mb-1 flex items-center gap-1">
-                    <UserCheck className="w-3 h-3" /> {t('contract_activity')}
-                 </p>
-                 <p className="font-bold text-slate-900 dark:text-neutral-50">
-                   {language === 'ar' 
-                     ? `لدى هذا المستأجر عدد (${selectedTenant?.leases?.length || 0}) عقود مسجلة في النظام.`
-                     : `This tenant has (${selectedTenant?.leases?.length || 0}) active leases registered.`
-                   }
-                 </p>
-              </div>
-           </div>
-           
-           <div className="p-8 bg-slate-50 dark:bg-neutral-800/80 flex gap-4">
-              <Button variant="ghost" onClick={() => setShowTenantDetails(false)} className="flex-1 h-12 rounded-xl font-bold text-slate-600 dark:text-neutral-400 hover:bg-slate-200 dark:hover:bg-neutral-800">إغلاق</Button>
-              <Button className="flex-1 h-12 bg-indigo-600 text-white hover:bg-indigo-700 rounded-xl font-black gap-2 shadow-lg shadow-indigo-600/20 active:scale-95 transition-all">
-                <FileText className="w-5 h-5" /> {t('export_profile_pdf')}
-              </Button>
-           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Attachments Dialog */}
-      <Dialog open={showAttachments} onOpenChange={setShowAttachments}>
-        <DialogContent className="sm:max-w-[700px] border-none shadow-2xl bg-white dark:bg-neutral-900 rounded-[32px] p-8">
-          <div dir={dir}>
-          <DialogHeader className={cn("text-right mb-4", language === 'en' ? "text-left" : "")}>
-            <DialogTitle className="text-2xl font-black text-slate-900 dark:text-neutral-50 leading-tight flex items-center gap-3">
-              <Paperclip className="w-6 h-6 text-indigo-600" />
-              {t('tenant_attachments')}: {selectedTenant?.firstName} {selectedTenant?.lastName}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedTenant && (
-            <AttachmentManager 
-              entityType="TENANT" 
-              entityId={selectedTenant.id} 
-              title={t('legal_docs')}
-            />
-          )}
-
-          <div className="mt-8 flex justify-end">
-            <Button 
-              type="button"
-              onClick={() => setShowAttachments(false)} 
-              className="bg-slate-100 dark:bg-neutral-800 text-slate-900 dark:text-neutral-50 hover:bg-slate-200 dark:hover:bg-neutral-700 font-bold px-8 rounded-xl"
-            >
-              {t('cancel')}
-            </Button>
           </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
     </div>
   );
 }

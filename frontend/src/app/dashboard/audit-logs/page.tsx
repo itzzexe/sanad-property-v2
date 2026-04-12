@@ -1,196 +1,167 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  History, User as UserIcon, Clock, Activity, Search, 
-  Filter, ArrowLeftRight, FileCode, CheckCircle2, XCircle, AlertCircle, ShieldCheck, Terminal
+import {
+  History, User as UserIcon, Search, Activity,
+  ArrowLeftRight, FileCode, CheckCircle2, XCircle, Terminal, RefreshCw
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { useLanguage } from "@/context/language-context";
 import { formatDistanceToNow, format } from "date-fns";
 import { ar } from "date-fns/locale";
-import { cn } from "@/lib/utils";
+
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+const actionStyle: Record<string, string> = {
+  CREATE: "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
+  UPDATE: "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
+  DELETE: "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400",
+};
 
 export default function AuditLogsPage() {
-  const [logs, setLogs] = useState<any[]>([]);
+  const { language, dir } = useLanguage();
+  const [logs,    setLogs]    = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const [search,  setSearch]  = useState("");
 
-  useEffect(() => {
-    loadLogs();
-  }, []);
-
-  async function loadLogs() {
+  const load = async () => {
     setLoading(true);
     try {
       const res = await api.get("/settings/audit?limit=50");
-      setLogs(res || []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+      setLogs((res as any).data ?? res ?? []);
+    } catch { setLogs([]); }
+    finally { setLoading(false); }
+  };
 
-  const filteredLogs = logs.filter(log => 
-    log.user?.firstName?.toLowerCase().includes(search.toLowerCase()) ||
-    log.user?.email?.toLowerCase().includes(search.toLowerCase()) ||
-    log.entity?.toLowerCase().includes(search.toLowerCase()) ||
-    log.action?.toLowerCase().includes(search.toLowerCase())
+  useEffect(() => { load(); }, []);
+
+  const filtered = logs.filter(l =>
+    `${l.user?.firstName} ${l.user?.lastName} ${l.user?.email} ${l.entity} ${l.action}`
+      .toLowerCase().includes(search.toLowerCase())
   );
 
+  const t = (ar: string, en: string) => language === "ar" ? ar : en;
+
   return (
-    <div className="space-y-10 page-enter p-2 md:p-6 pb-20">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-5xl font-black tracking-tight text-slate-900 mb-2 leading-tight">
-            سجل <span className="text-gradient-indigo">التدقيق</span>
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {t("سجل التدقيق", "Audit Log")}
           </h1>
-          <p className="text-slate-700 text-lg font-medium flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-indigo-500" />
-            مراقبة العمليات الحساسة وتوثيق التفاعلات التقنية لضمان شفافية النظام
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${logs.length} ${t("عملية", "entries")}`}
           </p>
         </div>
-        
-        <div className="flex items-center gap-4">
-           <div className="relative group w-64 md:w-80">
-              <Search className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-600 group-focus-within:text-indigo-500 transition-colors" />
-              <input 
-                placeholder="بحث في السجلات..." 
-                className="w-full pr-11 h-12 bg-white border border-slate-100 shadow-premium rounded-xl text-sm font-bold placeholder:text-slate-600 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500/30 transition-all font-bold" 
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-           </div>
-           <Button onClick={loadLogs} variant="outline" className="h-12 px-6 rounded-xl gap-2 border-slate-100 bg-white font-bold hover:bg-slate-50 transition-all">
-             <Activity className={cn("w-4 h-4 text-indigo-500", loading && "animate-spin")} />
-             تحديث
-           </Button>
+        <div className="flex items-center gap-2">
+          <div className="relative">
+            <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input value={search} onChange={e => setSearch(e.target.value)}
+              placeholder={t("بحث...","Search...")}
+              className="h-10 w-64 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 ps-9 pe-3 text-sm placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+          </div>
+          <button onClick={load}
+            className="flex items-center gap-2 h-10 px-4 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+            {t("تحديث","Refresh")}
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-         <div className="p-6 bg-white border-none shadow-premium rounded-2xl flex items-center gap-5 transition-transform hover:scale-[1.02] duration-300">
-            <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center">
-               <Terminal className="w-6 h-6 text-indigo-600" />
+      {/* Summary */}
+      {!loading && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            { label: t("إجمالي العمليات","Total"), value: logs.length, color: "bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300", icon: Terminal },
+            { label: t("إضافة","Create"),           value: logs.filter(l => l.action === "CREATE").length, color: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400", icon: CheckCircle2 },
+            { label: t("تعديل","Update"),            value: logs.filter(l => l.action === "UPDATE").length, color: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400", icon: ArrowLeftRight },
+            { label: t("حذف","Delete"),              value: logs.filter(l => l.action === "DELETE").length, color: "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400", icon: XCircle },
+          ].map((s, i) => (
+            <div key={i} className={cn("px-4 py-3 rounded-xl flex items-center gap-2.5", s.color)}>
+              <s.icon className="w-4 h-4 opacity-60 flex-shrink-0" />
+              <div>
+                <p className="text-[11px] font-semibold opacity-70 uppercase tracking-wide">{s.label}</p>
+                <p className="text-lg font-black mt-0.5">{s.value}</p>
+              </div>
             </div>
-            <div>
-               <p className="text-slate-600 text-[10px] font-black uppercase tracking-widest">إجمالي العمليات</p>
-               <p className="text-2xl font-black text-slate-900 leading-none mt-1">{logs.length}</p>
-            </div>
-         </div>
-         <div className="p-6 bg-white border-none shadow-premium rounded-2xl flex items-center gap-5 transition-transform hover:scale-[1.02] duration-300">
-            <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center">
-               <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-            </div>
-            <div>
-               <p className="text-slate-600 text-[10px] font-black uppercase tracking-widest">إضافة جديدة</p>
-               <p className="text-2xl font-black text-emerald-600 leading-none mt-1">{logs.filter(l => l.action === 'CREATE').length}</p>
-            </div>
-         </div>
-         <div className="p-6 bg-white border-none shadow-premium rounded-2xl flex items-center gap-5 transition-transform hover:scale-[1.02] duration-300">
-            <div className="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center">
-               <ArrowLeftRight className="w-6 h-6 text-blue-600" />
-            </div>
-            <div>
-               <p className="text-slate-600 text-[10px] font-black uppercase tracking-widest">عمليات التعديل</p>
-               <p className="text-2xl font-black text-blue-600 leading-none mt-1">{logs.filter(l => l.action === 'UPDATE').length}</p>
-            </div>
-         </div>
-         <div className="p-6 bg-white border-none shadow-premium rounded-2xl flex items-center gap-5 transition-transform hover:scale-[1.02] duration-300">
-            <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center">
-               <XCircle className="w-6 h-6 text-rose-600" />
-            </div>
-            <div>
-               <p className="text-slate-600 text-[10px] font-black uppercase tracking-widest">حذف سجلات</p>
-               <p className="text-2xl font-black text-rose-600 leading-none mt-1">{logs.filter(l => l.action === 'DELETE').length}</p>
-            </div>
-         </div>
-      </div>
+          ))}
+        </div>
+      )}
 
-      <Card className="border-none shadow-premium bg-white rounded-[32px] overflow-hidden">
-        <Table>
-          <TableHeader className="bg-slate-50/50">
-            <TableRow className="hover:bg-transparent border-slate-100">
-              <TableHead className="text-right py-6 text-slate-900 font-black">المستخدم</TableHead>
-              <TableHead className="text-center py-6 text-slate-900 font-black">النوع</TableHead>
-              <TableHead className="text-right py-6 text-slate-900 font-black">الكيان المتأثر</TableHead>
-              <TableHead className="text-right py-6 text-slate-900 font-black">المعرف</TableHead>
-              <TableHead className="text-right py-6 text-slate-900 font-black">التوقيت</TableHead>
-              <TableHead className="text-left py-6 text-slate-900 font-black pl-8">التفاصيل</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={6} className="h-20 animate-pulse bg-slate-50/20" />
-                </TableRow>
-              ))
-            ) : filteredLogs.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-64 text-center text-slate-600 italic">
-                  لا توجد سجلات تطابق البحث حالياً
-                </TableCell>
-              </TableRow>
-            ) : (
-              filteredLogs.map((log) => (
-                <TableRow key={log.id} className="hover:bg-slate-50/40 transition-colors border-slate-50 group">
-                  <TableCell className="py-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-300">
-                        <UserIcon className="w-4 h-4" />
+      {/* Table */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(6)].map((_,i) => <Sk key={i} className="h-14" />)}</div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <History className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">
+            {t("لا توجد سجلات","No logs found")}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-x-auto">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{t("المستخدم","User")}</th>
+                <th>{t("النوع","Action")}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{t("الكيان","Entity")}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{t("المعرف","ID")}</th>
+                <th>{t("التوقيت","Time")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((log: any) => (
+                <tr key={log.id}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                        <UserIcon className="w-3.5 h-3.5 text-neutral-500" />
                       </div>
                       <div>
-                        <p className="font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{log.user?.firstName} {log.user?.lastName}</p>
-                        <p className="text-[10px] text-slate-600 font-mono font-bold tracking-tight">{log.user?.email}</p>
+                        <p className="text-sm font-semibold text-neutral-900 dark:text-white">
+                          {log.user?.firstName} {log.user?.lastName}
+                        </p>
+                        <p className="text-[10px] text-neutral-400 font-mono">{log.user?.email}</p>
                       </div>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Badge className={cn(
-                      "rounded-lg px-3 py-1 font-black text-[9px] uppercase border-none shadow-none",
-                      log.action === 'CREATE' && "bg-emerald-100 text-emerald-700",
-                      log.action === 'UPDATE' && "bg-blue-100 text-blue-700",
-                      log.action === 'DELETE' && "bg-rose-100 text-rose-700",
-                      !['CREATE', 'UPDATE', 'DELETE'].includes(log.action) && "bg-slate-900 text-white"
-                    )}>
-                      {log.action === 'CREATE' ? 'CREATE' : 
-                       log.action === 'UPDATE' ? 'UPDATE' : 
-                       log.action === 'DELETE' ? 'DELETE' : log.action}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                     <div className="flex items-center gap-2">
-                        <FileCode className="w-3.5 h-3.5 text-slate-600" />
-                        <span className="font-bold text-slate-600 text-sm tracking-tight">{log.entity}</span>
-                     </div>
-                  </TableCell>
-                  <TableCell>
-                     <code className="text-[10px] bg-slate-50 px-2 py-1 rounded text-slate-600 font-mono border border-slate-100">
-                       {log.entityId.split('-')[0]}...
-                     </code>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-900">{formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: ar })}</span>
-                      <span className="text-[9px] text-slate-600 font-mono">{format(new Date(log.createdAt), 'HH:mm:ss')}</span>
+                  </td>
+                  <td>
+                    <span className={cn("inline-block text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wide", actionStyle[log.action] ?? "bg-neutral-100 text-neutral-600")}>
+                      {log.action}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1.5 text-xs text-neutral-600 dark:text-neutral-400">
+                      <FileCode className="w-3 h-3 text-neutral-400 flex-shrink-0" />
+                      <span className="font-semibold">{log.entity}</span>
                     </div>
-                  </TableCell>
-                  <TableCell className="pl-8 text-left">
-                     <Button variant="ghost" size="sm" className="h-8 rounded-lg px-3 text-[10px] font-black hover:bg-indigo-50 hover:text-indigo-600 transition-all">
-                       مشاهدة
-                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+                  </td>
+                  <td>
+                    <code className="text-[10px] bg-neutral-50 dark:bg-neutral-800 px-2 py-1 rounded border border-neutral-100 dark:border-neutral-700 text-neutral-500 font-mono">
+                      {(log.entityId ?? "").split("-")[0]}…
+                    </code>
+                  </td>
+                  <td>
+                    <div className="text-center">
+                      <p className="text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        {formatDistanceToNow(new Date(log.createdAt), { addSuffix: true, locale: language === "ar" ? ar : undefined })}
+                      </p>
+                      <p className="text-[10px] text-neutral-400 font-mono">
+                        {format(new Date(log.createdAt), "HH:mm:ss")}
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

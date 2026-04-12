@@ -7,265 +7,361 @@ import {
   Building2, LayoutDashboard, DoorOpen, Users, FileText,
   CreditCard, Calendar, Receipt, TrendingUp, BookOpen,
   PenLine, Scale, BarChart3, Target, ArrowDownToLine,
-  ArrowUpToLine, RefreshCw, Percent, CalendarRange, UserCog,
-  PanelLeftClose, Search, Bell, Moon, Sun, ChevronDown, 
-  Menu, X, LogOut, User, Settings as SettingsIcon
+  ArrowUpToLine, RefreshCw, CalendarRange, UserCog,
+  PanelLeftClose, Bell, Moon, Sun, ChevronDown, Wallet,
+  Menu, LogOut, User, Settings as SettingsIcon, ChevronRight,
+  FileBarChart, X
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { api } from "@/lib/api";
-import { cn } from "@/lib/utils";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
-  DropdownMenuLabel, 
-  DropdownMenuSeparator, 
-  DropdownMenuTrigger 
-} from "@/components/ui/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { MobileNav } from "@/components/ui/mobile-nav";
 import { useTheme } from "@/context/theme-context";
 import { useLanguage } from "@/context/language-context";
+import { cn } from "@/lib/utils";
 
-const NAVIGATION = [
+/* ─── Route labels ─────────────────────────────────────── */
+const LABELS: Record<string, { ar: string; en: string }> = {
+  dashboard:            { ar: "الرئيسية",          en: "Dashboard"         },
+  properties:           { ar: "العقارات",           en: "Properties"        },
+  units:                { ar: "الوحدات",            en: "Units"             },
+  tenants:              { ar: "المستأجرين",         en: "Tenants"           },
+  contracts:            { ar: "العقود",             en: "Contracts"         },
+  payments:             { ar: "المدفوعات",          en: "Payments"          },
+  installments:         { ar: "الأقساط",            en: "Installments"      },
+  receipts:             { ar: "السندات",            en: "Receipts"          },
+  finance:              { ar: "النظام المالي",      en: "Finance"           },
+  "chart-of-accounts":  { ar: "دليل الحسابات",     en: "Chart of Accounts" },
+  "journal-entries":    { ar: "قيود اليومية",       en: "Journal Entries"   },
+  "trial-balance":      { ar: "ميزان المراجعة",     en: "Trial Balance"     },
+  reports:              { ar: "التقارير",            en: "Reports"           },
+  budgets:              { ar: "الميزانيات",          en: "Budgets"           },
+  "accounts-receivable":{ ar: "حسابات القبض",       en: "Accounts Receivable"},
+  "accounts-payable":   { ar: "حسابات الدفع",       en: "Accounts Payable"  },
+  reconciliation:       { ar: "التسويات البنكية",   en: "Reconciliation"    },
+  "fiscal-periods":     { ar: "الفترات المالية",    en: "Fiscal Periods"    },
+  "income-statement":   { ar: "قائمة الدخل",        en: "Income Statement"  },
+  "balance-sheet":      { ar: "الميزانية العمومية", en: "Balance Sheet"     },
+  "cash-flow":          { ar: "التدفق النقدي",      en: "Cash Flow"         },
+  "ar-aging":           { ar: "أعمار الديون",       en: "AR Aging"          },
+  settings:             { ar: "الإعدادات",           en: "Settings"          },
+  users:                { ar: "المستخدمون",          en: "Users"             },
+  profile:              { ar: "الملف الشخصي",       en: "Profile"           },
+  "audit-logs":         { ar: "سجل المراجعة",       en: "Audit Logs"        },
+  tax:                  { ar: "الضرائب",             en: "Tax"               },
+  new:                  { ar: "جديد",               en: "New"               },
+};
+
+function label(seg: string, lang: "ar" | "en") {
+  return LABELS[seg]?.[lang] ?? seg.replace(/-/g, " ");
+}
+
+/* ─── Nav structure ─────────────────────────────────────── */
+const NAV = [
   {
-    label: "MAIN",
+    group: { ar: "الرئيسي", en: "Main" },
     items: [
-      { id: "dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { id: "properties", href: "/dashboard/properties", icon: Building2 },
-      { id: "units", href: "/dashboard/units", icon: DoorOpen },
-      { id: "tenants", href: "/dashboard/tenants", icon: Users },
-    ]
+      { id: "dashboard",    href: "/dashboard",            icon: LayoutDashboard },
+      { id: "properties",   href: "/dashboard/properties", icon: Building2       },
+      { id: "units",        href: "/dashboard/units",      icon: DoorOpen        },
+      { id: "tenants",      href: "/dashboard/tenants",    icon: Users           },
+    ],
   },
   {
-    label: "OPERATIONS",
+    group: { ar: "العمليات", en: "Operations" },
     items: [
-      { id: "leases", href: "/dashboard/contracts", icon: FileText },
-      { id: "payments", href: "/dashboard/payments", icon: CreditCard },
-      { id: "installments", href: "/dashboard/installments", icon: Calendar },
-      { id: "receipts", href: "/dashboard/receipts", icon: Receipt },
-    ]
+      { id: "contracts",    href: "/dashboard/contracts",    icon: FileText   },
+      { id: "payments",     href: "/dashboard/payments",     icon: CreditCard },
+      { id: "installments", href: "/dashboard/installments", icon: Calendar   },
+      { id: "receipts",     href: "/dashboard/receipts",     icon: Receipt    },
+    ],
   },
-  {
-    label: "FINANCE",
-    items: [
-      { id: "finance", href: "/dashboard/finance", icon: TrendingUp },
-      { id: "chart_of_accounts", href: "/dashboard/finance/chart-of-accounts", icon: BookOpen },
-      { id: "journal_entries", href: "/dashboard/finance/journal-entries", icon: PenLine },
-      { id: "trial_balance", href: "/dashboard/finance/trial-balance", icon: Scale },
-      { 
-        id: "reports", 
-        href: "#", 
-        icon: BarChart3,
-        submenu: [
-          { id: "income_statement", href: "/dashboard/finance/reports/income-statement" },
-          { id: "balance_sheet", href: "/dashboard/finance/reports/balance-sheet" },
-          { id: "cash_flow", href: "/dashboard/finance/reports/cash-flow" },
-          { id: "ar_aging", href: "/dashboard/finance/reports/ar-aging" },
-        ]
-      },
-      { id: "budgets", href: "/dashboard/finance/budgets", icon: Target },
-      { id: "ar", href: "/dashboard/finance/ar", icon: ArrowDownToLine },
-      { id: "ap", href: "/dashboard/finance/ap", icon: ArrowUpToLine },
-      { id: "reconciliation", href: "/dashboard/finance/reconciliation", icon: RefreshCw },
-    ]
-  },
-  {
-    label: "SETTINGS",
-    items: [
-      { id: "tax_rates", href: "/dashboard/finance/tax/rates", icon: Percent },
-      { id: "fiscal_periods", href: "/dashboard/settings/fiscal-periods", icon: CalendarRange },
-      { id: "users", href: "/dashboard/users", icon: UserCog },
-    ]
-  }
 ];
 
+const FINANCE_CHILDREN = [
+  { id: "chart_of_accounts", href: "/dashboard/finance/chart-of-accounts",   icon: BookOpen        },
+  { id: "journal_entries",   href: "/dashboard/finance/journal-entries",      icon: PenLine         },
+  { id: "trial_balance",     href: "/dashboard/finance/trial-balance",        icon: Scale           },
+  { id: "budgets",           href: "/dashboard/finance/budgets",              icon: Wallet          },
+  { id: "ar",                href: "/dashboard/finance/accounts-receivable",  icon: ArrowDownToLine },
+  { id: "ap",                href: "/dashboard/finance/accounts-payable/vendors", icon: ArrowUpToLine },
+  { id: "reconciliation",    href: "/dashboard/finance/reconciliation",       icon: RefreshCw       },
+  { id: "fiscal_periods",    href: "/dashboard/finance/fiscal-periods",       icon: CalendarRange   },
+];
+
+const FINANCE_REPORTS = [
+  { id: "income_statement", href: "/dashboard/finance/reports/income-statement" },
+  { id: "balance_sheet",    href: "/dashboard/finance/reports/balance-sheet"    },
+  { id: "cash_flow",        href: "/dashboard/finance/reports/cash-flow"        },
+  { id: "ar_aging",         href: "/dashboard/finance/reports/ar-aging"         },
+];
+
+const SYSTEM_NAV = [
+  { id: "reports",    href: "/dashboard/reports",    icon: BarChart3   },
+  { id: "users",      href: "/dashboard/users",      icon: UserCog     },
+  { id: "settings",   href: "/dashboard/settings",   icon: SettingsIcon},
+  { id: "audit-logs", href: "/dashboard/audit-logs", icon: FileBarChart},
+];
+
+/* ─── Component ─────────────────────────────────────────── */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, dir, t } = useLanguage();
-  const isFinanceSubApp = pathname.includes("/finance");
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isMobileOpen, setIsMobileOpen] = useState(false);
-  const [user, setUser] = useState<any>(null);
-  const [reportsOpen, setReportsOpen] = useState(false);
+  const lang = language as "ar" | "en";
+
+  const [collapsed,     setCollapsed]     = useState(false);
+  const [mobileOpen,    setMobileOpen]    = useState(false);
+  const [financeOpen,   setFinanceOpen]   = useState(false);
+  const [reportsOpen,   setReportsOpen]   = useState(false);
+  const [user,          setUser]          = useState<any>(null);
+
+  const inFinance = pathname.includes("/finance");
+  useEffect(() => { if (inFinance) setFinanceOpen(true); }, [inFinance]);
 
   useEffect(() => {
     const token = localStorage.getItem("accessToken");
-    if (!token) {
-      router.push("/login");
-      return;
-    }
-    const userData = localStorage.getItem("user");
-    if (userData) setUser(JSON.parse(userData));
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-          e.preventDefault();
-          alert("Command Palette coming soon!");
-       }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    if (!token) { router.push("/login"); return; }
+    const u = localStorage.getItem("user");
+    if (u) setUser(JSON.parse(u));
   }, [router]);
 
   const handleLogout = () => {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("refreshToken");
-    localStorage.removeItem("user");
+    ["accessToken","refreshToken","user"].forEach(k => localStorage.removeItem(k));
     router.push("/login");
   };
 
-  const SidebarContent = () => (
-    <div className={cn(
-      "flex flex-col h-full border-r border-neutral-200 dark:border-neutral-800 transition-colors duration-500 bg-white dark:bg-neutral-900"
-    )}>
-      {/* Logo Area */}
-      <div className="h-16 flex items-center justify-between px-6 border-b border-neutral-50 dark:border-neutral-800">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary-50">
-            <Building2 className="w-5 h-5 text-primary-500" />
+  /* breadcrumb */
+  const segments = pathname.split("/").filter(Boolean).slice(1);
+  const crumbs = [
+    { label: lang === "ar" ? "الرئيسية" : "Home", href: "/dashboard" },
+    ...segments.map((seg, i) => ({
+      label: label(seg, lang),
+      href: "/" + ["dashboard", ...segments.slice(0, i + 1)].join("/"),
+    })),
+  ];
+
+  /* ─── Sidebar inner ─────────────────────────────────── */
+  const Sidebar = () => (
+    <div className="flex flex-col h-full bg-white dark:bg-neutral-900 border-e border-neutral-100 dark:border-neutral-800">
+      {/* Logo row */}
+      <div className="h-14 flex items-center justify-between px-4 border-b border-neutral-100 dark:border-neutral-800 flex-shrink-0">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0 shadow-sm shadow-blue-600/30">
+            <Building2 className="w-4 h-4 text-white" />
           </div>
-          {!isCollapsed && (
-            <h4 className="text-lg font-black tracking-tighter text-neutral-900 dark:text-neutral-50">
-              RentFlow
-            </h4>
+          {!collapsed && (
+            <span className="text-[15px] font-black tracking-tight text-neutral-900 dark:text-white truncate">
+              سَنَد
+            </span>
           )}
         </div>
-        <button 
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="p-1 text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-50 transition-colors hidden lg:block"
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="hidden lg:flex p-1.5 rounded-lg text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
         >
-          <PanelLeftClose className={cn("w-5 h-5 transition-transform", isCollapsed && "rotate-180")} />
+          <PanelLeftClose className={cn("w-4 h-4 transition-transform duration-200", collapsed && "rotate-180")} />
         </button>
       </div>
 
-      {/* Search area */}
-      {!isCollapsed && (
-        <div className="px-4 py-4">
-          <div className="relative group">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
-            <input 
-              readOnly
-              placeholder="Search..." 
-              className="w-full h-9 pl-10 pr-12 bg-neutral-100 dark:bg-neutral-800 border-none rounded-md text-sm cursor-pointer outline-none focus:ring-1 focus:ring-primary-500 transition-all"
-              onClick={() => alert("Command Palette coming soon!")}
-            />
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-0.5 px-1.5 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-[10px] text-neutral-400">
-               <span>⌘</span><span>K</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-6 overflow-y-auto overflow-x-hidden scrollbar-hide">
-        {NAVIGATION.map((section) => (
-          <div key={section.label} className="space-y-1">
-            {!isCollapsed && (
-              <h5 className="px-3 text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
-                {section.label}
-              </h5>
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide px-2 py-3 space-y-5">
+        {/* Main + Operations */}
+        {NAV.map(section => (
+          <div key={section.group.en}>
+            {!collapsed && (
+              <p className="px-2 mb-1.5 text-[10px] font-bold text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
+                {section.group[lang]}
+              </p>
             )}
-            {section.items.map((item) => {
-              const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-              const isReports = item.id === "reports";
-              const label = t(item.id);
-              
-              return (
-                <div key={item.id} className="space-y-1">
+            <div className="space-y-0.5">
+              {section.items.map(item => {
+                const active = item.href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(item.href);
+                return (
                   <Link
-                    href={isReports ? "#" : item.href}
-                    onClick={(e) => {
-                      if (isReports) {
-                        e.preventDefault();
-                        setReportsOpen(!reportsOpen);
-                      } else {
-                        setIsMobileOpen(false);
-                      }
-                    }}
+                    key={item.id}
+                    href={item.href}
+                    onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all group relative",
-                      isActive
-                        ? "bg-primary-50 text-primary-600 border-r-2 border-primary-500 rounded-r-none"
-                        : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-semibold transition-all",
+                      active
+                        ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                        : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-200"
                     )}
                   >
-                    <item.icon className={cn("w-5 h-5", isActive ? "text-primary-500" : "text-neutral-400 group-hover:text-neutral-600")} />
-                    {!isCollapsed && (
-                      <span className="flex-1 flex items-center justify-between">
-                        {label}
-                        {isReports && <ChevronDown className={cn("w-4 h-4 transition-transform", reportsOpen && "rotate-180")} />}
-                      </span>
-                    )}
-                    {isCollapsed && isActive && (
-                       <div className="absolute right-0 top-0 bottom-0 w-1 bg-primary-500" />
-                    )}
+                    <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-blue-600 dark:text-blue-400" : "text-neutral-400")} />
+                    {!collapsed && <span className="truncate">{t(item.id)}</span>}
                   </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
 
-                  {isReports && reportsOpen && !isCollapsed && (
-                    <div className="ml-9 space-y-1">
-                      {item.submenu?.map((sub) => (
+        {/* Finance group */}
+        <div>
+          {!collapsed && (
+            <p className="px-2 mb-1.5 text-[10px] font-bold text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
+              {lang === "ar" ? "المالية" : "Finance"}
+            </p>
+          )}
+          <div className="space-y-0.5">
+            <button
+              onClick={() => setFinanceOpen(!financeOpen)}
+              className={cn(
+                "w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-semibold transition-all",
+                inFinance
+                  ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                  : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+              )}
+            >
+              <TrendingUp className={cn("w-4 h-4 flex-shrink-0", inFinance ? "text-blue-600 dark:text-blue-400" : "text-neutral-400")} />
+              {!collapsed && (
+                <>
+                  <span className="flex-1 text-start">{t("finance")}</span>
+                  <ChevronDown className={cn("w-3.5 h-3.5 transition-transform duration-200", financeOpen && "rotate-180")} />
+                </>
+              )}
+            </button>
+
+            {financeOpen && !collapsed && (
+              <div className="ms-3 ps-3 border-s-2 border-neutral-100 dark:border-neutral-800 space-y-0.5 mt-0.5">
+                {/* Finance Dashboard */}
+                <Link
+                  href="/dashboard/finance/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-semibold transition-all",
+                    pathname === "/dashboard/finance/dashboard" || pathname === "/dashboard/finance"
+                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600"
+                      : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>{lang === "ar" ? "لوحة المالية" : "Finance Dashboard"}</span>
+                </Link>
+
+                {FINANCE_CHILDREN.map(child => {
+                  const active = pathname.startsWith(child.href);
+                  return (
+                    <Link
+                      key={child.id}
+                      href={child.href}
+                      onClick={() => setMobileOpen(false)}
+                      className={cn(
+                        "flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-semibold transition-all",
+                        active
+                          ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600"
+                          : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                      )}
+                    >
+                      <child.icon className={cn("w-3.5 h-3.5", active ? "text-blue-500" : "text-neutral-400")} />
+                      <span>{t(child.id)}</span>
+                    </Link>
+                  );
+                })}
+
+                {/* Reports sub-group */}
+                <button
+                  onClick={() => setReportsOpen(!reportsOpen)}
+                  className={cn(
+                    "w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs font-semibold transition-all",
+                    pathname.includes("/finance/reports")
+                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600"
+                      : "text-neutral-500 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+                  )}
+                >
+                  <BarChart3 className="w-3.5 h-3.5 text-neutral-400" />
+                  <span className="flex-1 text-start">{t("reports")}</span>
+                  <ChevronDown className={cn("w-3 h-3 transition-transform duration-200", reportsOpen && "rotate-180")} />
+                </button>
+
+                {reportsOpen && (
+                  <div className="ms-4 space-y-0.5 border-s border-neutral-100 dark:border-neutral-800 ps-2">
+                    {FINANCE_REPORTS.map(sub => {
+                      const active = pathname === sub.href;
+                      return (
                         <Link
                           key={sub.id}
                           href={sub.href}
+                          onClick={() => setMobileOpen(false)}
                           className={cn(
-                            "block px-3 py-2 text-xs rounded-md transition-all",
-                            isFinanceSubApp ? "text-slate-400 hover:text-white hover:bg-white/10" : "text-neutral-500 hover:text-primary-600 hover:bg-primary-50/50"
+                            "block px-2 py-1 rounded text-[11px] font-medium transition-all",
+                            active
+                              ? "text-blue-600 bg-blue-50 dark:bg-blue-950/40"
+                              : "text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800"
                           )}
                         >
                           {t(sub.id)}
                         </Link>
-                      ))}
-                    </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* System */}
+        <div>
+          {!collapsed && (
+            <p className="px-2 mb-1.5 text-[10px] font-bold text-neutral-400 dark:text-neutral-600 uppercase tracking-widest">
+              {lang === "ar" ? "النظام" : "System"}
+            </p>
+          )}
+          <div className="space-y-0.5">
+            {SYSTEM_NAV.map(item => {
+              const active = pathname.startsWith(item.href);
+              return (
+                <Link
+                  key={item.id}
+                  href={item.href}
+                  onClick={() => setMobileOpen(false)}
+                  className={cn(
+                    "flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm font-semibold transition-all",
+                    active
+                      ? "bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+                      : "text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:hover:text-neutral-200"
                   )}
-                </div>
+                >
+                  <item.icon className={cn("w-4 h-4 flex-shrink-0", active ? "text-blue-600" : "text-neutral-400")} />
+                  {!collapsed && <span>{t(item.id)}</span>}
+                </Link>
               );
             })}
           </div>
-        ))}
+        </div>
       </nav>
 
-      {/* User Area */}
-      <div className="p-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-white dark:hover:bg-neutral-800 cursor-pointer transition-all">
-              <div className="w-10 h-10 rounded-full bg-primary-100 dark:bg-primary-900/30 flex items-center justify-center text-primary-600 font-bold text-sm">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
-              </div>
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold truncate text-neutral-900 dark:text-neutral-50">{user?.firstName} {user?.lastName}</p>
-                  <Badge variant="neutral" size="sm" className="mt-0.5 pointer-events-none">
-                    {user?.role === 'ADMIN' ? 'Owner' : 'Manager'}
-                  </Badge>
-                </div>
-              )}
+      {/* User footer */}
+      <div className="p-2 border-t border-neutral-100 dark:border-neutral-800 flex-shrink-0">
+        <div
+          className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800 cursor-pointer transition-all group"
+          onClick={() => router.push("/dashboard/profile")}
+        >
+          <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-700 dark:text-blue-400 font-black text-xs flex-shrink-0">
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold truncate text-neutral-900 dark:text-white">
+                {user?.firstName} {user?.lastName}
+              </p>
+              <p className="text-[10px] text-neutral-400 font-semibold">
+                {user?.role === "ADMIN" ? (lang === "ar" ? "مدير النظام" : "Admin") : (lang === "ar" ? "محاسب" : "Accountant")}
+              </p>
             </div>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 ml-4">
-            <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => router.push("/dashboard/profile")}>
-              <User className="mr-2 h-4 w-4" /> <span>Profile</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => router.push("/dashboard/settings")}>
-              <SettingsIcon className="mr-2 h-4 w-4" /> <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={toggleTheme}>
-              {theme === 'light' ? <Moon className="mr-2 h-4 w-4" /> : <Sun className="mr-2 h-4 w-4" />}
-              <span>{theme === 'light' ? 'Dark Mode' : 'Light Mode'}</span>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-danger focus:text-danger">
-              <LogOut className="mr-2 h-4 w-4" /> <span>Logout</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+          )}
+          {!collapsed && (
+            <button
+              onClick={e => { e.stopPropagation(); handleLogout(); }}
+              className="opacity-0 group-hover:opacity-100 p-1 rounded text-neutral-400 hover:text-red-500 transition-all"
+              title={lang === "ar" ? "خروج" : "Logout"}
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -273,84 +369,91 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   return (
-    <div className="min-h-screen flex transition-all duration-500 bg-neutral-50 dark:bg-dark-bg" dir={dir}>
-      <MobileNav />
-      {/* Sidebar - Desktop */}
+    <div className="min-h-screen flex bg-neutral-50 dark:bg-neutral-950" dir={dir}>
+      {/* Desktop sidebar */}
       <aside className={cn(
-        "hidden lg:block h-screen sticky top-0 transition-all duration-300 ease-in-out z-50",
-        isCollapsed ? "w-20" : "w-[240px]"
+        "hidden lg:block h-screen sticky top-0 flex-shrink-0 transition-all duration-300 ease-in-out z-30",
+        collapsed ? "w-[60px]" : "w-[220px]"
       )}>
-        <SidebarContent />
+        <Sidebar />
       </aside>
 
-      {/* Sidebar - Mobile Drawer */}
-      <Sheet open={isMobileOpen} onOpenChange={setIsMobileOpen}>
-        <SheetContent side="left" className="p-0 w-[240px]">
-          <SheetTitle className="sr-only">Mobile Navigation</SheetTitle>
-          <SheetDescription className="sr-only">Access all dashboard sections from here.</SheetDescription>
-          <SidebarContent />
-        </SheetContent>
-      </Sheet>
-
-      {/* Main Area */}
-      <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="h-16 sticky top-0 z-40 bg-white/80 dark:bg-neutral-900/80 backdrop-blur-md border-b border-neutral-200 dark:border-neutral-800 px-4 lg:px-8 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <button 
-              className="lg:hidden p-2 text-neutral-600" 
-              onClick={() => setIsMobileOpen(true)}
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
-              <span className="hover:text-primary-500 cursor-pointer">Home</span>
-              <span>/</span>
-              <span className="hover:text-primary-500 cursor-pointer capitalize">
-                 {pathname.split('/')[2] || "Dashboard"}
-              </span>
-              {pathname.split('/').length > 3 && (
-                <>
-                  <span>/</span>
-                  <span className="text-neutral-900 dark:text-neutral-50 font-medium">Unit 4B</span>
-                </>
-              )}
+      {/* Mobile sidebar overlay */}
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 flex">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />
+          <div className={cn("relative z-50 w-[220px] h-full flex-shrink-0", dir === "rtl" ? "mr-auto" : "ml-0")}>
+            <div className="absolute top-3 end-3 z-10">
+              <button
+                onClick={() => setMobileOpen(false)}
+                className="w-7 h-7 rounded-lg bg-white/10 flex items-center justify-center text-white"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
+            <Sidebar />
+          </div>
+        </div>
+      )}
+
+      {/* Main content */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Topbar */}
+        <header className="h-14 sticky top-0 z-20 bg-white/95 dark:bg-neutral-900/95 backdrop-blur border-b border-neutral-100 dark:border-neutral-800 px-4 flex items-center justify-between gap-4">
+          {/* Left: hamburger + breadcrumb */}
+          <div className="flex items-center gap-3 min-w-0">
+            <button
+              className="lg:hidden p-1.5 rounded-lg text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+              onClick={() => setMobileOpen(true)}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <nav className="flex items-center gap-1 text-xs overflow-hidden">
+              {crumbs.map((crumb, i) => (
+                <span key={i} className="flex items-center gap-1 whitespace-nowrap">
+                  {i > 0 && <ChevronRight className="w-3 h-3 text-neutral-300 dark:text-neutral-600 flex-shrink-0" />}
+                  {i === crumbs.length - 1 ? (
+                    <span className="font-semibold text-neutral-700 dark:text-neutral-300 truncate max-w-[140px]">
+                      {crumb.label}
+                    </span>
+                  ) : (
+                    <Link href={crumb.href} className="text-neutral-400 hover:text-blue-500 transition-colors font-medium">
+                      {crumb.label}
+                    </Link>
+                  )}
+                </span>
+              ))}
+            </nav>
           </div>
 
-          <div className="flex items-center gap-4 lg:gap-6">
-            {/* Fiscal Period Indicator */}
-            <div className="hidden sm:flex items-center px-3 py-1.5 bg-accent-50 dark:bg-accent-900/20 border border-accent-400/20 rounded-full">
-               <CalendarRange className="w-3.5 h-3.5 text-accent-500 mr-2" />
-               <span className="text-[10px] font-bold text-accent-600 uppercase tracking-wider">Jan 2025 — OPEN</span>
-            </div>
+          {/* Right */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
+            >
+              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
+            </button>
 
-            <div className="flex items-center gap-2">
-              <button 
-                className="p-2 text-neutral-400 hover:text-primary-500 transition-colors"
-                onClick={toggleTheme}
-              >
-                {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5 text-amber-500" />}
-              </button>
-              <button 
-                className="px-2 py-1 text-[10px] font-black border border-neutral-200 dark:border-neutral-800 rounded uppercase hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
-                onClick={() => setLanguage(language === 'ar' ? 'en' : 'ar')}
-              >
-                {language === 'ar' ? 'EN' : 'AR'}
-              </button>
-            </div>
+            <button
+              onClick={() => setLanguage(language === "ar" ? "en" : "ar")}
+              className="px-2 py-1 text-[10px] font-bold border border-neutral-200 dark:border-neutral-700 rounded-lg uppercase hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-all text-neutral-600 dark:text-neutral-400"
+            >
+              {language === "ar" ? "EN" : "AR"}
+            </button>
 
-            <div className="h-8 w-[1px] bg-neutral-200 dark:bg-neutral-800 mx-1 hidden lg:block" />
-            
-            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-[11px] font-bold text-primary-600">
-               {user?.firstName?.[0]}
-            </div>
+            <button
+              onClick={() => router.push("/dashboard/profile")}
+              className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-[11px] font-bold text-blue-700 dark:text-blue-400 hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors"
+            >
+              {user?.firstName?.[0]}
+            </button>
           </div>
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden pb-24 lg:pb-6">
-          <div className="max-w-[1400px] mx-auto animate-in fade-in slide-in-from-bottom-2 duration-500">
+        {/* Page content */}
+        <main className="flex-1 p-4 lg:p-6 overflow-x-hidden">
+          <div className="max-w-[1400px] mx-auto">
             {children}
           </div>
         </main>

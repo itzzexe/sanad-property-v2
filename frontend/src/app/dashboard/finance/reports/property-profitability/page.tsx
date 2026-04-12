@@ -18,7 +18,7 @@ export default function PropertyProfitabilityPage() {
 
   return (
     <div className="space-y-6">
-      <ReportHeader title="تقرير ربحية العقارات" reportType="property-profitability" />
+      <ReportHeader title="تقرير ربحية العقارات" reportType="property-profitability" dateRange="" />
 
       {loading ? (
         <div className="flex items-center justify-center h-40"><Loader2 className="w-8 h-8 text-[#6264A7] animate-spin" /></div>

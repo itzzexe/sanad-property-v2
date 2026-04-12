@@ -2,34 +2,36 @@ import { IsString, IsOptional, IsNumber } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePropertyDto {
-  @ApiProperty({ example: 'Sunrise Tower' })
+  @ApiProperty({ example: 'عقار المحلة 236' })
   @IsString()
   name: string;
 
-  @ApiProperty({ example: '123 Main Street' })
+  @ApiPropertyOptional({ example: 'شارع الرشيد' })
+  @IsOptional()
   @IsString()
-  address: string;
+  address?: string;
 
-  @ApiProperty({ example: 'New York' })
+  @ApiPropertyOptional({ example: 'بغداد' })
+  @IsOptional()
   @IsString()
-  city: string;
+  city?: string;
 
-  @ApiPropertyOptional({ example: 'NY' })
+  @ApiPropertyOptional({ example: 'بغداد' })
   @IsOptional()
   @IsString()
   state?: string;
 
-  @ApiPropertyOptional({ example: 'US' })
+  @ApiPropertyOptional({ example: 'Iraq' })
   @IsOptional()
   @IsString()
   country?: string;
 
-  @ApiPropertyOptional({ example: '10001' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   zipCode?: string;
 
-  @ApiPropertyOptional({ example: 'A luxury residential tower' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   description?: string;
@@ -39,157 +41,167 @@ export class CreatePropertyDto {
   @IsString()
   image?: string;
 
-  @ApiPropertyOptional({ example: 'https://goo.gl/maps/...' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   mapUrl?: string;
 
-  @ApiProperty()
+  // ── General Information ──────────────────────────────────
+  @ApiProperty({ description: 'الجهة المصدرة' })
   @IsString()
   issuer: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'مديرية التسجيل العقاري في' })
   @IsString()
   registrationDirectorate: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'نوع النموذج' })
   @IsString()
   formType: string;
 
-  @ApiProperty()
+  // ── Current Permanent Record ──────────────────────────────
+  @ApiProperty({ description: 'المحافظة' })
   @IsString()
   governorate: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'القضاء', example: 'الرصافة' })
+  @IsOptional()
   @IsString()
-  district: string;
+  district?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'الناحية' })
   @IsOptional()
   @IsString()
   subDistrict?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'الشارع' })
   @IsOptional()
   @IsString()
   street?: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'العدد' })
   @IsString()
   recordNumber: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'التاريخ' })
   @IsString()
   recordDate: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'رقم المجلد' })
   @IsString()
   recordVolume: string;
 
-  @ApiProperty()
+  // ── Transferred From Record ───────────────────────────────
+  @ApiProperty({ description: 'العدد (المنقول منه)' })
   @IsString()
   prevRecordNumber: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'التاريخ (المنقول منه)' })
   @IsString()
   prevRecordDate: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'رقم المجلد (المنقول منه)' })
   @IsString()
   prevRecordVolume: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'تسلسل العقار' })
   @IsString()
   propertySequence: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'اسم المحلة' })
   @IsString()
   neighborhoodName: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'رقم الباب' })
   @IsOptional()
   @IsString()
   doorNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'رقم القطعة' })
   @IsOptional()
   @IsString()
   plotNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'رقم المقاطعة' })
   @IsOptional()
   @IsString()
   sectionNumber?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'اسم المقاطعة' })
   @IsOptional()
   @IsString()
   sectionName?: string;
 
-  @ApiProperty()
+  // ── Ownership & Property Details ──────────────────────────
+  @ApiProperty({ description: 'المالك أو المتصرف وتابعيته' })
   @IsString()
   ownerNationality: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'الحدود', example: 'كما في الخارطة' })
   @IsOptional()
   @IsString()
   boundaries?: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'جنس العقار' })
   @IsString()
   propertyGender: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'نوع العقار (الصنف)' })
   @IsString()
   propertyTypeDetailed: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'المشتملات' })
   @IsOptional()
   @IsString()
   contents?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'حقوق الارتفاق والعقر' })
   @IsOptional()
   @IsString()
   easements?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'المساحة - متر مربع' })
+  @IsOptional()
   @IsNumber()
-  areaSqm: number;
+  areaSqm?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'المساحة - اولك' })
   @IsOptional()
   @IsNumber()
   areaOlk?: number;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'المساحة - دونم' })
   @IsOptional()
   @IsNumber()
   areaDonum?: number;
 
-  @ApiProperty()
+  // ── Registration Details ──────────────────────────────────
+  @ApiProperty({ description: 'ماهية التسجيل ومستنداته' })
   @IsString()
   registrationNature: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'اشارات التأمينات العينية والحجز' })
   @IsOptional()
   @IsString()
   insuranceNotes?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'حكم السند' })
   @IsOptional()
   @IsString()
   deedRuling?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'الجهة الطالبة' })
+  @IsOptional()
   @IsString()
-  requestingEntity: string;
+  requestingEntity?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'تاريخ التصديق' })
+  @IsOptional()
   @IsString()
-  certificationDate: string;
+  certificationDate?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'الأختام' })
+  @IsOptional()
   @IsString()
-  seals: string;
+  seals?: string;
 }

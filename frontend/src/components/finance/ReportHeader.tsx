@@ -1,14 +1,15 @@
 "use client";
 
-import { Printer, FileDown, Table } from "lucide-react";
+import { FileDown, Table } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 interface ReportHeaderProps {
   title: string;
-  dateRange: string;
+  dateRange?: string;
+  reportType?: string;
   onExportPdf?: () => void;
   onExportExcel?: () => void;
+  children?: React.ReactNode;
 }
 
 export function ReportHeader({ title, dateRange, onExportPdf, onExportExcel }: ReportHeaderProps) {

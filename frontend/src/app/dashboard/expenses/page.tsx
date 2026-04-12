@@ -1,454 +1,356 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { 
-  Zap, Plus, Search, Filter, ArrowDownRight, ArrowUpRight, 
-  Trash2, Receipt, Home, Calendar, CreditCard, Loader2,
-  CheckCircle2, AlertCircle, FileText, DollarSign, Coins, Paperclip, Eye, Download
+import {
+  Receipt, Plus, Search, Trash2, FileText, Loader2,
+  Eye, Paperclip, ArrowDownRight, Zap, Home, X
 } from "lucide-react";
 import { AttachmentManager } from "@/components/shared/attachment-manager";
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api";
-import { useCurrency } from "@/context/currency-context";
 import { cn } from "@/lib/utils";
-import { 
-  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter 
-} from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+import { useLanguage } from "@/context/language-context";
+import { useCurrency } from "@/context/currency-context";
 
-const CATEGORIES_AR: any = {
-  MAINTENANCE: "صيانة",
-  UTILITY: "فواتير وخدمات",
-  TAX: "ضرائب ورسوم",
-  MANAGEMENT: "إدارة",
-  INSURANCE: "تأمين",
-  SALARY: "رواتب",
-  MARKETING: "تسويق",
-  OTHER: "أخرى"
+const Sk = ({ className }: { className?: string }) => (
+  <div className={cn("skeleton-shimmer rounded-lg", className)} />
+);
+
+const CATEGORIES: Record<string, { ar: string; en: string }> = {
+  MAINTENANCE: { ar: "صيانة",          en: "Maintenance" },
+  UTILITY:     { ar: "فواتير وخدمات", en: "Utilities"   },
+  TAX:         { ar: "ضرائب ورسوم",   en: "Taxes"       },
+  MANAGEMENT:  { ar: "إدارة",          en: "Management"  },
+  INSURANCE:   { ar: "تأمين",          en: "Insurance"   },
+  SALARY:      { ar: "رواتب",          en: "Salaries"    },
+  MARKETING:   { ar: "تسويق",          en: "Marketing"   },
+  OTHER:       { ar: "أخرى",           en: "Other"       },
+};
+
+const emptyForm = {
+  title: "", amount: 0, category: "MAINTENANCE", propertyId: "",
+  description: "", date: new Date().toISOString().split("T")[0],
 };
 
 export default function ExpensesPage() {
-  const { format } = useCurrency();
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [properties, setProperties] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isAddOpen, setIsAddOpen] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [selectedExpense, setSelectedExpense] = useState<any>(null);
-  const [showExpenseDetails, setShowExpenseDetails] = useState(false);
-  const [showAttachments, setShowAttachments] = useState(false);
-  const [creationFiles, setCreationFiles] = useState<File[]>([]);
-  const creationFilesInputRef = useRef<HTMLInputElement>(null);
-  
-  const [newExpense, setNewExpense] = useState({
-    title: "",
-    amount: 0,
-    category: "MAINTENANCE",
-    propertyId: "",
-    description: "",
-    date: new Date().toISOString().split('T')[0]
-  });
+  const { language, dir } = useLanguage();
+  const { format }        = useCurrency();
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [expenses,    setExpenses]    = useState<any[]>([]);
+  const [properties,  setProperties]  = useState<any[]>([]);
+  const [loading,     setLoading]     = useState(true);
+  const [modal,       setModal]       = useState(false);
+  const [saving,      setSaving]      = useState(false);
+  const [viewing,     setViewing]     = useState<any>(null);
+  const [attachExp,   setAttachExp]   = useState<any>(null);
+  const [form,        setForm]        = useState({ ...emptyForm });
+  const [files,       setFiles]       = useState<File[]>([]);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  async function loadData() {
+  const load = async () => {
     setLoading(true);
     try {
       const [expRes, propRes] = await Promise.all([
         api.get("/financial/expenses"),
-        api.get("/properties")
+        api.get("/properties?limit=100"),
       ]);
-      setExpenses(expRes.data || expRes || []);
-      const pData = propRes.data || propRes || [];
-      setProperties(pData);
-      if (pData.length > 0 && !newExpense.propertyId) {
-        setNewExpense(prev => ({ ...prev, propertyId: pData[0].id }));
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }
+      const exps  = (expRes as any).data  ?? expRes  ?? [];
+      const props = (propRes as any).data ?? propRes ?? [];
+      setExpenses(exps);
+      setProperties(props);
+      if (props.length > 0) setForm(f => ({ ...f, propertyId: props[0].id }));
+    } catch { setExpenses([]); }
+    finally  { setLoading(false); }
+  };
 
-  async function handleAdd(e: React.FormEvent) {
+  useEffect(() => { load(); }, []);
+
+  const handleAdd = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await api.post("/financial/expenses", newExpense);
-      const expenseId = res.id;
-
-      if (creationFiles.length > 0) {
-        for (const file of creationFiles) {
-          const formData = new FormData();
-          formData.append('file', file);
-          formData.append('entityType', 'EXPENSE');
-          formData.append('entityId', expenseId);
-          await api.post("/attachments/upload", formData);
+      const res = await api.post("/financial/expenses", form);
+      const id  = (res as any).id ?? (res as any).data?.id;
+      if (id && files.length > 0) {
+        for (const file of files) {
+          const fd = new FormData();
+          fd.append("file", file); fd.append("entityType", "EXPENSE"); fd.append("entityId", id);
+          await api.post("/attachments/upload", fd);
         }
       }
-
-      setIsAddOpen(false);
-      setCreationFiles([]);
-      loadData();
-      setNewExpense({ title: "", amount: 0, category: "MAINTENANCE", propertyId: "", description: "", date: new Date().toISOString().split('T')[0] });
-    } catch (err) { console.error(err); }
+      setModal(false); setFiles([]); setForm({ ...emptyForm, propertyId: form.propertyId }); load();
+    } catch { }
     finally { setSaving(false); }
-  }
-
-  async function handleDelete(id: string) {
-    if (!confirm("هل أنت متأكد من حذف هذه النفقة؟")) return;
-    try {
-      await api.delete(`/financial/expenses/${id}`);
-      loadData();
-    } catch (err) { console.error(err); }
-  }
-
-  const stats = {
-    total: expenses.reduce((acc, curr) => acc + curr.amount, 0),
-    utilities: expenses.filter(e => e.category === 'UTILITY').reduce((acc, curr) => acc + curr.amount, 0),
-    maintenance: expenses.filter(e => e.category === 'MAINTENANCE').reduce((acc, curr) => acc + curr.amount, 0),
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm(language === "ar" ? "هل أنت متأكد من الحذف؟" : "Delete this expense?")) return;
+    try { await api.delete(`/financial/expenses/${id}`); load(); } catch {}
+  };
+
+  const stats = {
+    total:       expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0),
+    utilities:   expenses.filter(e => e.category === "UTILITY").reduce((s, e) => s + Number(e.amount ?? 0), 0),
+    maintenance: expenses.filter(e => e.category === "MAINTENANCE").reduce((s, e) => s + Number(e.amount ?? 0), 0),
+  };
+
+  const t = (ar: string, en: string) => language === "ar" ? ar : en;
+
   return (
-    <div className="space-y-8 page-enter p-2 md:p-1">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+    <div className={cn("space-y-5 page-enter pb-8", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-4xl font-black text-[#242424] mb-1">المصروفات و<span className="text-[#6264A7]">الفواتير</span></h1>
-          <p className="text-[#222222] text-sm font-semibold flex items-center gap-2 italic">
-            <Zap className="w-4 h-4 text-[#6264A7]" />
-            إدارة النفقات التشغيلية وفواتير الخدمات بكافة الفئات
+          <h1 className="text-2xl font-black text-neutral-900 dark:text-white">
+            {t("المصروفات", "Expenses")}
+          </h1>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
+            {loading ? "..." : `${expenses.length} ${t("نفقة", "expenses")}`}
           </p>
         </div>
-        
-        <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-[#6264A7] hover:bg-[#464775] text-white font-bold h-11 px-6 rounded-md shadow-sm gap-2">
-              <Plus className="w-4 h-4" />
-              تسجيل نفقة جديدة
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[550px] bg-white border-none shadow-2xl rounded-xl p-0 overflow-hidden" dir="rtl">
-             <div className="h-1 bg-[#6264A7]" />
-             <form onSubmit={handleAdd}>
-               <div className="p-8 space-y-6">
-                 <DialogHeader className="text-right">
-                   <DialogTitle className="text-2xl font-black text-[#242424]">إضافة فاتورة / نفقة</DialogTitle>
-                   <DialogDescription className="font-bold text-[#222222]">أدخل تفاصيل النفقة المالية لتخصيمها من الأرباح العامة</DialogDescription>
-                 </DialogHeader>
-
-                 <div className="space-y-4">
-                   <div className="grid grid-cols-2 gap-4 text-right">
-                      <div className="space-y-2">
-                        <Label className="font-bold">موضوع النفقة</Label>
-                        <Input required value={newExpense.title} onChange={e => setNewExpense({...newExpense, title: e.target.value})} placeholder="مثال: فاتورة كهرباء ماراثون" className="bg-[#F5F5F5] border-[#999999] h-11 rounded-md" />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold">المبلغ المستحق</Label>
-                        <Input type="number" required value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: parseFloat(e.target.value)})} className="bg-[#F5F5F5] border-[#999999] h-11 rounded-md text-left font-black" dir="ltr" />
-                      </div>
-                   </div>
-
-                   <div className="grid grid-cols-2 gap-4 text-right">
-                      <div className="space-y-2">
-                        <Label className="font-bold">التصنيف</Label>
-                        <Select value={newExpense.category} onValueChange={v => setNewExpense({...newExpense, category: v})}>
-                          <SelectTrigger className="bg-[#F5F5F5] border-[#999999] h-11">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border-[#999999]">
-                            {Object.entries(CATEGORIES_AR).map(([k, v]: any) => (
-                              <SelectItem key={k} value={k} className="font-bold">{v}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold">العقار المرتبط</Label>
-                        <Select value={newExpense.propertyId} onValueChange={v => setNewExpense({...newExpense, propertyId: v})}>
-                          <SelectTrigger className="bg-[#F5F5F5] border-[#999999] h-11">
-                            <SelectValue placeholder="اختر العقار" />
-                          </SelectTrigger>
-                          <SelectContent className="bg-white border-[#999999]">
-                            {properties.map(p => (
-                              <SelectItem key={p.id} value={p.id} className="font-bold">{p.name}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                   </div>
-
-                   <div className="space-y-2 text-right">
-                      <Label className="font-bold px-1">التاريخ</Label>
-                      <Input type="date" value={newExpense.date} onChange={e => setNewExpense({...newExpense, date: e.target.value})} className="bg-[#F5F5F5] border-[#999999] h-11 rounded-md" />
-                   </div>
-
-                   <div className="space-y-2 text-right">
-                      <Label className="font-bold px-1">ملاحظات إضافية</Label>
-                      <textarea 
-                        className="w-full h-24 p-4 bg-[#F5F5F5] border-[#999999] rounded-md focus:outline-none focus:ring-1 focus:ring-[#6264A7] font-medium text-slate-900"
-                        value={newExpense.description}
-                        onChange={e => setNewExpense({...newExpense, description: e.target.value})}
-                      />
-                   </div>
-
-                   <div className="space-y-4 pt-2">
-                     <Label className="font-bold flex items-center gap-2">
-                       <Paperclip className="w-4 h-4 text-[#6264A7]" /> إيصال النفقة / الوصل (صور / PDF)
-                     </Label>
-                     <div className="bg-[#F5F5F5] p-6 rounded-md border border-dashed border-[#999999]">
-                       <input 
-                         type="file" 
-                         multiple 
-                         className="hidden" 
-                         ref={creationFilesInputRef}
-                         onChange={(e) => {
-                           const files = Array.from(e.target.files || []);
-                           setCreationFiles(prev => [...prev, ...files]);
-                         }}
-                         accept="image/*,application/pdf"
-                       />
-                       <div className="flex flex-col items-center justify-center text-center space-y-2">
-                         <Button 
-                           type="button" 
-                           onClick={() => creationFilesInputRef.current?.click()}
-                           variant="ghost"
-                           className="text-[#6264A7] font-bold hover:bg-white"
-                         >
-                           <Plus className="w-4 h-4 ml-1" /> إضافة وصولات
-                         </Button>
-                       </div>
-
-                       {creationFiles.length > 0 && (
-                         <div className="mt-4 space-y-2">
-                           {creationFiles.map((file, idx) => (
-                             <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-md border border-[#F0F0F0]">
-                               <span className="text-xs font-bold truncate text-slate-600 max-w-[150px]">{file.name}</span>
-                               <Button 
-                                 type="button" 
-                                 variant="ghost" 
-                                 size="icon" 
-                                 onClick={() => setCreationFiles(prev => prev.filter((_, i) => i !== idx))}
-                                 className="text-rose-500 h-7 w-7"
-                               >
-                                 <Trash2 className="w-3.5 h-3.5" />
-                               </Button>
-                             </div>
-                           ))}
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                 </div>
-               </div>
-               <DialogFooter className="p-8 bg-[#F0F0F0] border-t border-[#999999] flex gap-3">
-                  <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)} className="flex-1 font-bold text-[#222222]">إلغاء</Button>
-                  <Button type="submit" disabled={saving} className="flex-1 bg-[#6264A7] text-white hover:bg-[#464775] font-black h-11 rounded-md">
-                    {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : "حفظ الفاتورة"}
-                  </Button>
-               </DialogFooter>
-             </form>
-          </DialogContent>
-        </Dialog>
+        <button onClick={() => setModal(true)}
+          className="flex items-center gap-2 h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors">
+          <Plus className="w-4 h-4" />
+          {t("نفقة جديدة", "New Expense")}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-lg border border-[#999999] shadow-sm flex items-center gap-5 transition-all hover:border-[#6264A7]/30">
-           <div className="w-12 h-12 rounded-lg bg-rose-50 flex items-center justify-center text-rose-600">
-              <ArrowDownRight className="w-6 h-6" />
-           </div>
-           <div>
-              <p className="text-[10px] text-[#222222] font-black uppercase tracking-widest leading-none mb-2">إجمالي النفقات</p>
-              <p className="text-2xl font-black text-[#242424]">{format(stats.total)}</p>
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-[#999999] shadow-sm flex items-center gap-5 transition-all hover:border-[#6264A7]/30">
-           <div className="w-12 h-12 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-              <Zap className="w-6 h-6" />
-           </div>
-           <div>
-              <p className="text-[10px] text-[#222222] font-black uppercase tracking-widest leading-none mb-2">فواتير الخدمات</p>
-              <p className="text-2xl font-black text-[#242424]">{format(stats.utilities)}</p>
-           </div>
-        </div>
-        <div className="bg-white p-6 rounded-lg border border-[#999999] shadow-sm flex items-center gap-5 transition-all hover:border-[#6264A7]/30">
-           <div className="w-12 h-12 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-              <Home className="w-6 h-6" />
-           </div>
-           <div>
-              <p className="text-[10px] text-[#222222] font-black uppercase tracking-widest leading-none mb-2">مصاريف الصيانة</p>
-              <p className="text-2xl font-black text-[#242424]">{format(stats.maintenance)}</p>
-           </div>
-        </div>
-      </div>
-
-      <Card className="bg-white border border-[#999999] shadow-sm rounded-lg overflow-hidden">
-        <Table>
-          <TableHeader className="bg-[#F0F0F0]/50">
-            <TableRow className="hover:bg-transparent border-[#999999]">
-              <TableHead className="py-4 text-[#242424] font-black text-right">النفقة</TableHead>
-              <TableHead className="py-4 text-[#242424] font-black text-center">التصنيف</TableHead>
-              <TableHead className="py-4 text-[#242424] font-black text-right">العقار</TableHead>
-              <TableHead className="py-4 text-[#242424] font-black text-right">المبلغ</TableHead>
-              <TableHead className="py-4 text-[#242424] font-black text-right">التاريخ</TableHead>
-              <TableHead className="py-4 text-[#242424] font-black text-left pl-8"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              Array.from({ length: 5 }).map((_, i) => (
-                <TableRow key={i}>
-                  <TableCell colSpan={6} className="h-16 animate-pulse bg-slate-50/50" />
-                </TableRow>
-              ))
-            ) : expenses.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-64 text-center">
-                   <Receipt className="w-12 h-12 mx-auto text-slate-600 mb-4" />
-                   <p className="text-slate-600 font-bold italic">لا توجد نفقات مسجلة حالياً</p>
-                </TableCell>
-              </TableRow>
-            ) : (
-              expenses.map((exp: any) => (
-                <TableRow key={exp.id} className="hover:bg-[#F5F5F5] transition-colors group border-[#F0F0F0]">
-                  <TableCell className="py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-[#EBEBEB] flex items-center justify-center text-[#222222] group-hover:bg-[#6264A7] group-hover:text-white transition-all">
-                         <FileText className="w-5 h-5" />
-                      </div>
-                      <span className="font-bold text-[#242424]">{exp.title}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                     <Badge variant="secondary" className="bg-[#EBEBEB] text-[#111111] font-black text-[9px] px-3 py-1 rounded-sm border-[#999999]">
-                        {CATEGORIES_AR[exp.category] || exp.category}
-                     </Badge>
-                  </TableCell>
-                  <TableCell>
-                     <p className="font-bold text-slate-600 text-xs">{exp.property?.name || "عام"}</p>
-                  </TableCell>
-                  <TableCell className="font-black text-rose-600">
-                     {format(exp.amount)}
-                  </TableCell>
-                  <TableCell className="text-xs text-slate-600 font-bold">
-                     {new Date(exp.date).toLocaleDateString('ar-IQ')}
-                  </TableCell>
-                  <TableCell className="pl-8 text-left">
-                     <div className="flex items-center justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => {
-                             setSelectedExpense(exp);
-                             setShowExpenseDetails(true);
-                           }} className="h-9 w-9 text-slate-600 hover:text-[#6264A7] transition-all opacity-0 group-hover:opacity-100">
-                           <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => {
-                             setSelectedExpense(exp);
-                             setShowAttachments(true);
-                           }} className="h-9 w-9 text-slate-600 hover:text-[#6264A7] transition-all opacity-0 group-hover:opacity-100">
-                           <Paperclip className="w-4 h-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(exp.id)} className="h-9 w-9 text-slate-600 hover:text-rose-600 transition-all opacity-0 group-hover:opacity-100">
-                           <Trash2 className="w-4 h-4" />
-                        </Button>
-                     </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
-
-      {/* Expense Details Dialog */}
-      <Dialog open={showExpenseDetails} onOpenChange={setShowExpenseDetails}>
-        <DialogContent className="sm:max-w-[600px] border-none shadow-2xl bg-white rounded-xl p-0 overflow-hidden" dir="rtl">
-           <div className="h-1 bg-[#6264A7]" />
-           <div className="p-8 space-y-8">
-              <DialogHeader className="text-right">
-                <div className="flex items-center gap-4">
-                   <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-[#6264A7] shadow-sm">
-                     <Receipt className="w-8 h-8" />
-                   </div>
-                   <div>
-                     <DialogTitle className="text-3xl font-black text-[#242424] leading-tight">تفاصيل المصروف</DialogTitle>
-                     <p className="text-[#6264A7] font-black text-xs uppercase tracking-widest">{CATEGORIES_AR[selectedExpense?.category] || selectedExpense?.category}</p>
-                   </div>
-                </div>
-              </DialogHeader>
-
-              <div className="grid grid-cols-2 gap-4">
-                 <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">الموضوع</p>
-                    <p className="font-black text-slate-900">{selectedExpense?.title}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">المبلغ المصروف</p>
-                    <p className="font-black text-rose-600 text-lg">{format(selectedExpense?.amount)}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">العقار المعني</p>
-                    <p className="font-black text-slate-900">{selectedExpense?.property?.name || "عام / غير محدد"}</p>
-                 </div>
-                 <div className="p-4 bg-slate-50/50 rounded-xl border border-slate-100">
-                    <p className="text-[10px] text-slate-500 font-black uppercase mb-1">تاريخ القيد</p>
-                    <p className="font-black text-slate-900">{selectedExpense?.date ? new Date(selectedExpense.date).toLocaleDateString('ar-IQ') : '—'}</p>
-                 </div>
+      {/* Summary */}
+      {!loading && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {[
+            { label: t("إجمالي النفقات","Total Expenses"),  value: format(stats.total),       color: "bg-rose-50 dark:bg-rose-950/30 text-rose-700 dark:text-rose-400",           icon: ArrowDownRight },
+            { label: t("فواتير الخدمات","Utilities"),       value: format(stats.utilities),   color: "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-400",           icon: Zap },
+            { label: t("مصاريف الصيانة","Maintenance"),     value: format(stats.maintenance), color: "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400", icon: Home },
+          ].map((s, i) => (
+            <div key={i} className={cn("px-4 py-3 rounded-xl flex items-center gap-3", s.color)}>
+              <s.icon className="w-5 h-5 opacity-60 flex-shrink-0" />
+              <div>
+                <p className="text-[11px] font-semibold opacity-70 uppercase tracking-wide">{s.label}</p>
+                <p className="text-lg font-black mt-0.5">{s.value}</p>
               </div>
+            </div>
+          ))}
+        </div>
+      )}
 
-              {selectedExpense?.description && (
-                <div className="p-5 bg-white border border-slate-100 rounded-2xl shadow-sm">
-                   <p className="text-[10px] text-[#6264A7] font-black uppercase mb-2">وصف العملية</p>
-                   <p className="text-sm font-bold text-slate-800 leading-relaxed italic">"{selectedExpense.description}"</p>
+      {/* Table */}
+      {loading ? (
+        <div className="space-y-3">{[...Array(5)].map((_,i) => <Sk key={i} className="h-14" />)}</div>
+      ) : expenses.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 gap-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800">
+          <Receipt className="w-12 h-12 text-neutral-300 dark:text-neutral-700" />
+          <p className="font-semibold text-neutral-500 dark:text-neutral-400">{t("لا توجد نفقات", "No expenses found")}</p>
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-x-auto">
+          <table className="w-full data-table">
+            <thead>
+              <tr>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{t("النفقة","Expense")}</th>
+                <th>{t("التصنيف","Category")}</th>
+                <th className={language === "ar" ? "text-right" : "text-left"}>{t("العقار","Property")}</th>
+                <th>{t("المبلغ","Amount")}</th>
+                <th>{t("التاريخ","Date")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {expenses.map((exp: any) => (
+                <tr key={exp.id}>
+                  <td>
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-3.5 h-3.5 text-neutral-500" />
+                      </div>
+                      <span className="text-sm font-semibold text-neutral-900 dark:text-white">{exp.title}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                      {CATEGORIES[exp.category]?.[language as "ar"|"en"] ?? exp.category}
+                    </span>
+                  </td>
+                  <td className="text-xs text-neutral-500 dark:text-neutral-400 font-medium">
+                    {exp.property?.name ?? t("عام","General")}
+                  </td>
+                  <td className="font-bold text-rose-600 dark:text-rose-400">{format(Number(exp.amount))}</td>
+                  <td className="text-xs text-neutral-500 dark:text-neutral-400">
+                    {new Date(exp.date).toLocaleDateString(language === "ar" ? "ar-IQ" : "en-US")}
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setViewing(exp)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                        <Eye className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => setAttachExp(exp)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors">
+                        <Paperclip className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDelete(exp.id)}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Add Expense Modal */}
+      {modal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setModal(false)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 scale-in max-h-[90vh] overflow-y-auto" dir={dir}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 rounded-t-2xl">
+              <h2 className="font-bold text-neutral-900 dark:text-white text-sm">{t("تسجيل نفقة جديدة","New Expense")}</h2>
+              <button onClick={() => setModal(false)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form onSubmit={handleAdd}>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("موضوع النفقة","Title")}</label>
+                  <input required value={form.title} onChange={e => setForm({...form, title: e.target.value})}
+                    placeholder={t("مثال: فاتورة كهرباء","e.g. Electricity bill")}
+                    className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("المبلغ","Amount")}</label>
+                    <input required type="number" min="0" step="any" value={form.amount || ""} onChange={e => setForm({...form, amount: parseFloat(e.target.value) || 0})} dir="ltr"
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("التاريخ","Date")}</label>
+                    <input type="date" value={form.date} onChange={e => setForm({...form, date: e.target.value})}
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("التصنيف","Category")}</label>
+                    <select value={form.category} onChange={e => setForm({...form, category: e.target.value})}
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none">
+                      {Object.entries(CATEGORIES).map(([k, v]) => (
+                        <option key={k} value={k}>{v[language as "ar"|"en"]}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("العقار","Property")}</label>
+                    <select value={form.propertyId} onChange={e => setForm({...form, propertyId: e.target.value})}
+                      className="w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none">
+                      {properties.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">{t("ملاحظات","Notes")}</label>
+                  <textarea value={form.description} onChange={e => setForm({...form, description: e.target.value})} rows={3}
+                    className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all resize-none" />
+                </div>
+                {/* File attachments */}
+                <div>
+                  <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+                    <Paperclip className="inline w-3 h-3 me-1" />{t("مرفقات","Attachments")}
+                  </label>
+                  <input ref={fileRef} type="file" multiple accept="image/*,application/pdf" className="hidden"
+                    onChange={e => setFiles(prev => [...prev, ...Array.from(e.target.files ?? [])])} />
+                  <button type="button" onClick={() => fileRef.current?.click()}
+                    className="w-full h-10 rounded-lg border-2 border-dashed border-neutral-200 dark:border-neutral-700 text-xs font-medium text-neutral-400 hover:border-blue-400 hover:text-blue-500 transition-colors">
+                    {t("اختر ملفات","Choose Files")}
+                  </button>
+                  {files.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {files.map((f, i) => (
+                        <div key={i} className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-neutral-50 dark:bg-neutral-800 text-xs">
+                          <span className="truncate text-neutral-600 dark:text-neutral-400 max-w-[240px]">{f.name}</span>
+                          <button type="button" onClick={() => setFiles(prev => prev.filter((_,j) => j !== i))}
+                            className="text-rose-500 hover:text-rose-700 flex-shrink-0 ms-2">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex gap-3 px-6 py-4 border-t border-neutral-100 dark:border-neutral-800 sticky bottom-0 bg-white dark:bg-neutral-900 rounded-b-2xl">
+                <button type="button" onClick={() => setModal(false)}
+                  className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                  {t("إلغاء","Cancel")}
+                </button>
+                <button type="submit" disabled={saving}
+                  className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold transition-colors">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  {t("حفظ","Save")}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* View Details Modal */}
+      {viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setViewing(null)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-md border border-neutral-100 dark:border-neutral-800 scale-in" dir={dir}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              <h2 className="font-bold text-neutral-900 dark:text-white text-sm">{t("تفاصيل النفقة","Expense Details")}</h2>
+              <button onClick={() => setViewing(null)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              <div className="rounded-xl border border-neutral-100 dark:border-neutral-800 overflow-hidden">
+                {[
+                  { label: t("الموضوع","Title"),       value: viewing.title },
+                  { label: t("المبلغ","Amount"),        value: format(Number(viewing.amount)) },
+                  { label: t("التصنيف","Category"),    value: CATEGORIES[viewing.category]?.[language as "ar"|"en"] ?? viewing.category },
+                  { label: t("العقار","Property"),     value: viewing.property?.name ?? t("عام","General") },
+                  { label: t("التاريخ","Date"),         value: new Date(viewing.date).toLocaleDateString(language === "ar" ? "ar-IQ" : "en-US") },
+                ].map((row, i) => (
+                  <div key={i} className="flex justify-between items-center px-4 py-3 border-b border-neutral-50 dark:border-neutral-800 last:border-0 text-sm">
+                    <span className="text-neutral-400 text-xs font-semibold">{row.label}</span>
+                    <span className="font-bold text-neutral-900 dark:text-white">{row.value}</span>
+                  </div>
+                ))}
+              </div>
+              {viewing.description && (
+                <div className="px-4 py-3 bg-neutral-50 dark:bg-neutral-800 rounded-xl text-sm text-neutral-600 dark:text-neutral-400">
+                  {viewing.description}
                 </div>
               )}
-           </div>
-           
-           <div className="p-8 bg-[#F0F0F0] border-t border-[#999999] flex gap-4">
-              <Button variant="ghost" onClick={() => setShowExpenseDetails(false)} className="flex-1 font-bold text-[#222222]">إغلاق</Button>
-              <Button className="flex-2 bg-[#6264A7] text-white hover:bg-[#464775] font-black h-12 rounded-md gap-2 shadow-lg shadow-[#6264A7]/20 active:scale-95 transition-all">
-                <FileText className="w-5 h-5" /> استخراج تفصيل المصروف (PDF)
-              </Button>
-           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Attachments Dialog */}
-      <Dialog open={showAttachments} onOpenChange={setShowAttachments}>
-        <DialogContent className="sm:max-w-[700px] border-none shadow-2xl bg-white rounded-xl p-8" dir="rtl">
-          <div className="h-1 bg-[#6264A7] absolute top-0 left-0 right-0" />
-          <DialogHeader className="text-right mb-4">
-            <DialogTitle className="text-2xl font-black text-[#242424] leading-tight flex items-center gap-3">
-              <Paperclip className="w-6 h-6 text-[#6264A7]" />
-              مرفقات ووصولات: {selectedExpense?.title}
-            </DialogTitle>
-          </DialogHeader>
-          
-          {selectedExpense && (
-            <AttachmentManager 
-              entityType="EXPENSE" 
-              entityId={selectedExpense.id} 
-              title="الوصولات والمستندات"
-            />
-          )}
-
-          <div className="mt-8 flex justify-end">
-            <Button 
-              type="button"
-              onClick={() => setShowAttachments(false)} 
-              className="bg-slate-100 text-slate-900 hover:bg-slate-200 font-bold px-8 rounded-md"
-            >
-              إغلاق
-            </Button>
+            </div>
           </div>
-        </DialogContent>
-      </Dialog>
+        </div>
+      )}
+
+      {/* Attachments Modal */}
+      {attachExp && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAttachExp(null)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-xl border border-neutral-100 dark:border-neutral-800 scale-in max-h-[80vh] overflow-y-auto" dir={dir}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 rounded-t-2xl">
+              <h2 className="font-bold text-neutral-900 dark:text-white text-sm">
+                <Paperclip className="inline w-4 h-4 me-2" />{attachExp.title}
+              </h2>
+              <button onClick={() => setAttachExp(null)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6">
+              <AttachmentManager entityType="EXPENSE" entityId={attachExp.id} title={t("الوصولات والمستندات","Receipts & Documents")} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
