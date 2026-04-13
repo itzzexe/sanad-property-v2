@@ -1,106 +1,218 @@
-# RentFlow | Advanced Property & Financial Management System
+# Sanad Property | نظام إدارة العقارات والمالية
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)
+![TypeScript](https://img.shields.io/badge/TypeScript-strict-blue.svg)
 
-RentFlow is a production-grade, full-stack ERP solution designed for modern real estate management. It combines intuitive property management with a robust, double-entry financial backend, allowing property managers to track everything from lease installments to complex trial balances in one unified platform.
+**Sanad** (سَنَد) is a production-grade, full-stack ERP platform built for Arabic-first real estate management. It unifies property operations, tenant lifecycle management, and a complete double-entry accounting engine into a single, modern dashboard — with full Arabic/English bilingual support.
 
 ---
 
 ## 1. Project Overview
 
-RentFlow solves the fragmentation issue in real estate management by bridging the gap between operations (tenants, units, leases) and finance (accounting, reporting, taxation). It ensures every operational event—like a lease signing or a maintenance payment—generates the correct accounting entries automatically.
+Sanad eliminates the fragmentation between property operations and finance by ensuring every operational event (lease signing, payment, maintenance) automatically generates the correct double-entry accounting records. The platform supports multi-currency operations, granular role-based permissions, and a complete audit trail.
 
-**Key Value Propositions:**
-- **Financial Integrity:** Full double-entry accounting system with automated journal entries.
-- **Operational Efficiency:** Automated lease installment engine and receipt generation.
-- **Data-Driven Insights:** Real-time financial reports including Income Statements and Balance Sheets.
+**Core Value Propositions:**
+- **Financial Integrity:** Full double-entry accounting with automated journal entries and approval workflows.
+- **Operational Efficiency:** Automated lease installment engine, receipt generation, and bank reconciliation workspace.
+- **Bilingual First:** Every screen, label, and notification ships in both Arabic (RTL) and English (LTR).
+- **Audit-Ready:** Every create/update/delete action is logged with user attribution.
 
 ---
 
-## 2. Key Features
+## 2. Features
 
-### 🔐 Authentication & Security
-- Role-Based Access Control (RBAC): Admin, Accountant, Owner, and Maintenance roles.
-- Secure JWT-based authentication with Passport.js.
-- Protected API routes and encrypted password hashing.
+### Authentication & Access Control
+- Role-Based Access Control (RBAC): `ADMIN`, `ACCOUNTANT`, `OWNER`, `MAINTENANCE`
+- Granular per-user permission overrides via a permissions modal
+- JWT authentication with Passport.js
+- Configurable session timeout and max login attempts
 
-### 🏢 Property & Asset Management
-- Hierarchical structure: Properties → Blocks → Floors → Units.
-- Real-time occupancy tracking and unit status management.
-- Dynamic asset attribute mapping.
+### Property & Asset Management
+- Hierarchical structure: Properties → Units
+- Real-time occupancy tracking and unit status (`AVAILABLE`, `OCCUPIED`, `MAINTENANCE`)
+- Dynamic property attributes
 
-### 📜 Lease & Tenant Lifecycle
-- Automated installment generation based on lease terms (Monthly, Quarterly, Annually).
-- Tenant portal ready (Backend support for tenant profiles and balances).
-- Contract management with automated status updates.
+### Tenant & Lease Lifecycle
+- Full tenant profile management with contact details and balances
+- Lease contracts with configurable payment frequency (Monthly, Quarterly, Annual)
+- Automated installment schedule generation
+- Contract cancellation and status tracking
 
-### 💰 Double-Entry Finance
-- **Chart of Accounts (COA):** Customizable multi-level account hierarchy.
-- **Journal Entries:** Manual and automated journals with multi-currency support.
-- **Fiscal Periods:** Support for opening/closing fiscal years and periods.
-- **Taxation:** Configurable tax rates (VAT) integrated into billing.
+### Payments & Receipts
+- Payment recording against lease installments
+- Receipt generation with printable HTML view (Blob URL, no `document.write`)
+- Downloadable receipt as `.txt` file
+- Overdue payment tracking
 
-### 📊 Financial Reporting
-- **Trial Balance:** Real-time account balance verification.
-- **Income Statement (P&L):** Revenue vs. Expense tracking with prior period comparison.
-- **Balance Sheet:** Snapshots of Assets, Liabilities, and Equity.
-- **AR/AP Aging:** Tracking of outstanding tenant receivables and vendor payables.
+### Double-Entry Accounting
+- **Chart of Accounts (COA):** Multi-level customizable account hierarchy
+- **Journal Entries:** Manual creation with line-by-line debit/credit balancing
+- **Journal Approval Workflow:** Entries requiring approval are routed to the Approvals queue
+- **Fiscal Periods:** Opening and closing of fiscal years and periods
+- **Bank Accounts & Reconciliation:** Full reconciliation workspace with auto-match and manual match
+
+### Accounts Payable (AP)
+- Vendor management (create, list, detail)
+- Bill creation with line items, linked to vendors and GL accounts
+- AP Aging report (Current, 1–30, 31–60, 61–90, 90+ days)
+
+### Accounts Receivable (AR)
+- Tenant balance tracking with per-tenant statement view
+- AR Aging analysis
+
+### Budgeting
+- Budget creation linked to fiscal years and properties
+- Interactive budget line editor (account, period, amount, notes)
+- Save budget lines via API
+
+### Taxation
+- Configurable VAT/tax rates
+- VAT Return report with date range picker, Output VAT, Input VAT, and Net VAT summary
+
+### Financial Reports
+- **Trial Balance** — Real-time debit/credit verification
+- **Income Statement (P&L)** — Revenue vs. Expense with prior-period comparison
+- **Balance Sheet** — Snapshot of Assets, Liabilities, Equity
+- **General Reports** — PDF/Excel export via signed URL download
+- **AP Aging** — Vendor overdue breakdown
+
+### Approval Workflows
+- Centralized queue for journal entries and account creation requests
+- Approve/Reject with optional rejection note
+- Reviewer attribution and audit trail
+
+### Settings
+- Company information (name, phone, email, tax ID, license number)
+- Localization: interface language (AR/EN), default currency (USD, IQD, EUR, SAR), exchange rate, date format
+- Financial settings: late fee %, grace days, fiscal year start, invoice prefix, auto-post toggles
+- Notification settings: overdue reminders, lease expiry alerts, email notifications
+- Security settings: 2FA toggle, session timeout, max login attempts
+
+### UI/UX
+- Dark mode with persistent theme toggle
+- RTL/LTR layout switching per language
+- Toast notifications (Sonner) replacing all `alert()` calls
+- Skeleton shimmer loading states throughout
+- Sticky reconciliation status bar with live balance difference indicator
 
 ---
 
 ## 3. System Architecture
 
-RentFlow follows a **Modular Monolith** architecture to ensure scalability while maintaining simplicity for deployment.
-
-```mermaid
-graph TD
-    User((User)) -->|Next.js| Frontend[Frontend - Next.js 14]
-    Frontend -->|REST API| Backend[Backend - NestJS]
-    Backend -->|Prisma ORM| DB[(PostgreSQL)]
-    Backend -->|S3 Protocol| Storage[MinIO / Cloud Storage]
-    Backend -->|JWT| Auth[Passport Auth Service]
 ```
-
-- **Frontend:** A responsive SPA using Next.js, optimized for server-side rendering where needed.
-- **Backend:** A NestJS framework providing dependency injection, modularity, and strict TypeScript patterns.
-- **Database:** Prisma ORM acts as the type-safe bridge to PostgreSQL, ensuring schema consistency.
+┌────────────────────────────────────────────────────────┐
+│                     Browser / Client                    │
+│              Next.js 14 (App Router, RSC)               │
+└─────────────────────────┬──────────────────────────────┘
+                          │ REST / JSON
+┌─────────────────────────▼──────────────────────────────┐
+│                    NestJS Backend                        │
+│   Modules: Auth · Properties · Tenants · Leases         │
+│   Finance · AP · AR · Budgets · Tax · Reports           │
+│   Approvals · Settings · Audit Logs · Users             │
+└──────────┬──────────────────────────┬───────────────────┘
+           │ Prisma ORM               │ S3 Protocol
+┌──────────▼──────────┐   ┌───────────▼──────────────────┐
+│    PostgreSQL        │   │      MinIO / Cloud Storage    │
+│  (Primary Database)  │   │   (Receipts, Exports, Assets) │
+└─────────────────────┘   └──────────────────────────────┘
+```
 
 ---
 
 ## 4. Tech Stack
 
 | Layer | Technology |
-| :--- | :--- |
-| **Frontend** | Next.js 14 (App Router), Tailwind CSS, Radix UI, Lucide Icons |
-| **Backend** | NestJS (Node.js), TypeScript, EventEmitter2 (Async events) |
-| **ORM/DB** | Prisma v5+, PostgreSQL |
-| **Validation** | Zod (Frontend), Class Validator & Transformer (Backend) |
+|:---|:---|
+| **Frontend Framework** | Next.js 14 (App Router), React 18 |
+| **Styling** | Tailwind CSS v3, custom design tokens |
+| **UI Components** | Radix UI primitives, custom component library |
+| **Icons** | Lucide React |
+| **Notifications** | Sonner (toast) |
+| **Backend Framework** | NestJS (Node.js), TypeScript strict mode |
+| **ORM** | Prisma v5+, PostgreSQL |
+| **Validation** | Class Validator & Transformer (Backend), Zod (Frontend) |
 | **Authentication** | Passport.js, JWT Strategy |
-| **DevOps** | Docker, MinIO (Object Storage), GitHub Actions |
+| **API Docs** | Swagger (auto-generated at `/docs`) |
+| **DevOps** | Docker Compose, MinIO, Nginx reverse proxy |
 
 ---
 
 ## 5. Project Structure
 
-```text
+```
 /
-├── backend/               # NestJS Source Code
+├── backend/
 │   ├── src/
-│   │   ├── modules/       # Domain-driven modules (Auth, Financials, Properties)
-│   │   ├── prisma/        # Database service and client
-│   │   └── common/        # Global guards, filters, and decorators
-│   ├── prisma/            # Schema definition and seed scripts
-│   └── .env.example       # Backend environment template
-├── frontend/              # Next.js Source Code
+│   │   ├── modules/
+│   │   │   ├── auth/               # JWT, Passport, Guards
+│   │   │   ├── users/              # User management, permissions
+│   │   │   ├── properties/         # Properties & Units
+│   │   │   ├── tenants/            # Tenant profiles
+│   │   │   ├── leases/             # Contracts, installments
+│   │   │   ├── payments/           # Payment recording, receipts
+│   │   │   ├── finance/
+│   │   │   │   ├── accounts/       # Chart of Accounts
+│   │   │   │   ├── journal-entries/# Double-entry journals
+│   │   │   │   ├── fiscal-periods/ # Fiscal year management
+│   │   │   │   ├── bank-accounts/  # Bank account management
+│   │   │   │   ├── reconciliation/ # Bank reconciliation
+│   │   │   │   ├── ap/             # Accounts Payable, vendors, bills
+│   │   │   │   ├── ar/             # Accounts Receivable
+│   │   │   │   ├── budgets/        # Budget & budget lines
+│   │   │   │   ├── tax/            # VAT rates, VAT return
+│   │   │   │   └── reports/        # Trial balance, P&L, Balance Sheet
+│   │   │   ├── approvals/          # Approval workflow engine
+│   │   │   ├── audit-logs/         # Full action audit trail
+│   │   │   └── settings/           # System-wide configuration
+│   │   └── prisma/                 # PrismaService
+│   ├── prisma/
+│   │   ├── schema.prisma
+│   │   └── seed.ts
+│   └── .env.example
+│
+├── frontend/
 │   ├── src/
-│   │   ├── app/           # App Router (Pages & Layouts)
-│   │   ├── components/    # Reusable UI & Business components
-│   │   ├── lib/           # API clients and utilities
-│   │   └── hooks/         # Custom React hooks
-│   └── .env.local         # Frontend environment template
-└── run.bat                # Unified launcher script (Windows)
+│   │   ├── app/
+│   │   │   └── dashboard/
+│   │   │       ├── properties/     # Properties list & forms
+│   │   │       ├── units/          # Units management
+│   │   │       ├── tenants/        # Tenant list & profiles
+│   │   │       ├── contracts/      # Lease contracts
+│   │   │       ├── payments/       # Payments & installments
+│   │   │       ├── receipts/       # Receipt viewer & printer
+│   │   │       ├── finance/
+│   │   │       │   ├── chart-of-accounts/
+│   │   │       │   ├── journal-entries/
+│   │   │       │   ├── fiscal-periods/
+│   │   │       │   ├── reconciliation/[bankAccountId]/[statementId]/
+│   │   │       │   ├── accounts-payable/  # AP, vendors, bills, aging
+│   │   │       │   ├── accounts-receivable/
+│   │   │       │   ├── budgets/           # Budget list & line editor
+│   │   │       │   ├── tax/vat-return/
+│   │   │       │   └── reports/           # Balance sheet, income statement, trial balance
+│   │   │       ├── approvals/
+│   │   │       ├── users/
+│   │   │       ├── audit-logs/
+│   │   │       └── settings/
+│   │   ├── components/
+│   │   │   └── ui/                 # Button, Card, Badge, Modal, Input, etc.
+│   │   ├── lib/
+│   │   │   ├── api/
+│   │   │   │   ├── index.ts        # Base axios client
+│   │   │   │   └── finance.ts      # Finance-specific API methods
+│   │   │   └── utils.ts
+│   │   └── context/
+│   │       ├── language-context.tsx
+│   │       ├── currency-context.tsx
+│   │       └── theme-context.tsx
+│   └── .env.local.example
+│
+├── nginx/                          # Nginx reverse proxy config
+├── docker-compose.yml
+└── run.bat                         # Windows unified launcher
 ```
 
 ---
@@ -108,52 +220,57 @@ graph TD
 ## 6. Installation & Setup
 
 ### Prerequisites
-- **Node.js:** v18.x or higher
-- **PostgreSQL:** v14+
-- **MinIO:** (Optional, defaults to local dev settings)
+- Node.js v18.x or higher
+- PostgreSQL v14+
+- Docker (optional, for MinIO)
 
-### Step-by-Step Setup
+### Quick Start
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/your-repo/rentflow.git
-   cd rentflow
+   git clone https://github.com/your-repo/sanad-property.git
+   cd sanad-property
    ```
 
-2. **Backend Configuration:**
+2. **Backend setup:**
    ```bash
    cd backend
    npm install
    cp .env.example .env
+   # Edit .env with your database credentials
+   npx prisma db push
+   npx prisma db seed
+   npm run start:dev
    ```
-   *Edit `.env` with your database credentials.*
 
-3. **Frontend Configuration:**
+3. **Frontend setup:**
    ```bash
    cd ../frontend
    npm install
    cp .env.local.example .env.local
+   # Edit .env.local with API URL
+   npm run dev
    ```
 
-4. **Initialize Database:**
+4. **Or use the Windows launcher:**
    ```bash
-   cd ../backend
-   npx prisma db push
-   npx prisma db seed
+   run.bat
    ```
 
 ---
 
-## 7. Configuration (.env)
+## 7. Environment Variables
 
 ### Backend `.env`
 ```ini
 PORT=4000
-DATABASE_URL="postgresql://user:password@localhost:5432/rentflow"
-JWT_SECRET="your_ultra_secure_secret"
+DATABASE_URL="postgresql://user:password@localhost:5432/sanad"
+JWT_SECRET="your_ultra_secure_secret_min_32_chars"
 MINIO_ENDPOINT="localhost"
+MINIO_PORT=9000
 MINIO_ACCESS_KEY="minio-root"
 MINIO_SECRET_KEY="minio-password"
+MINIO_BUCKET="sanad-uploads"
 ```
 
 ### Frontend `.env.local`
@@ -163,64 +280,94 @@ NEXT_PUBLIC_API_URL="http://localhost:4000/api"
 
 ---
 
-## 8. API Documentation
+## 8. Default Credentials (Seed)
 
-The API automatically generates **Swagger** documentation.
-- **Local link:** `http://localhost:4000/docs`
+After running `npx prisma db seed`:
 
-### Example Endpoint: Create Journal Entry
+| Role | Email | Password |
+|:---|:---|:---|
+| Admin | `admin@sanad.com` | `Admin@123` |
+
+---
+
+## 9. API Documentation
+
+Swagger UI is available at `http://localhost:4000/docs` when the backend is running.
+
+### Example: Create Journal Entry
 **`POST /api/journal-entries`**
-
-**Request Body:**
 ```json
 {
-  "date": "2026-04-10",
+  "date": "2026-04-14",
   "description": "Office Rent Payment",
   "lines": [
-    { "accountId": "uuid-1", "debit": 1500, "credit": 0 },
-    { "accountId": "uuid-2", "debit": 0, "credit": 1500 }
+    { "accountId": "uuid-rent-expense", "debit": 1500, "credit": 0 },
+    { "accountId": "uuid-bank-account", "debit": 0,    "credit": 1500 }
   ]
 }
 ```
 
----
+### Example: VAT Return
+**`GET /api/tax/vat-return?startDate=2026-01-01&endDate=2026-03-31`**
 
-## 9. Database & Migrations
-
-RentFlow uses **Prisma** for schema management.
-- **Sync Schema:** `npx prisma db push` (Development)
-- **Generate Client:** `npx prisma generate`
-- **Reset Data:** `npx prisma migrate reset` (Caution: data loss)
-
-The `seed.ts` script initializes:
-- Default `Admin` user (`admin@rentflow.com` / `Admin@123`).
-- Chart of Accounts (COA) template.
-- Global settings and tax rates.
+### Example: AP Aging
+**`GET /api/ap/aging?asOfDate=2026-04-14`**
 
 ---
 
-## 10. Troubleshooting
+## 10. Database Management
+
+```bash
+# Apply schema changes (development)
+npx prisma db push
+
+# Generate Prisma client after schema changes
+npx prisma generate
+
+# Reset all data and re-seed (CAUTION: destructive)
+npx prisma migrate reset
+
+# Open Prisma Studio (visual DB browser)
+npx prisma studio
+```
+
+---
+
+## 11. Troubleshooting
 
 | Issue | Cause | Fix |
-| :--- | :--- | :--- |
-| `EADDRINUSE: 4000` | Process stuck on port 4000 | Run `taskkill /F /IM node.exe /T` or use `run.bat` |
-| `Table 'User' not found` | Schema not synced | Run `npx prisma db push` in the backend |
-| `401 Unauthorized` | Invalid/Expired token | Clear browser local storage and re-login |
-| `404 on /ap/vendors` | Controller path mismatch| Ensure backend controllers use `@Controller('ap/...')` prefix |
+|:---|:---|:---|
+| `EADDRINUSE: 4000` | Port occupied | `taskkill /F /IM node.exe /T` or use `run.bat` |
+| `Table 'User' not found` | Schema not synced | `npx prisma db push` in backend |
+| `401 Unauthorized` | Expired/invalid token | Clear localStorage and re-login |
+| `404 on /ap/vendors` | Route mismatch | Ensure controller uses `@Controller('ap/vendors')` |
+| RTL layout broken | Missing `dir` attribute | Wrap pages with `dir={dir}` from `useLanguage()` |
+| Toast not showing | Missing `<Toaster />` | Add `<Toaster />` to root layout |
 
 ---
 
-## 11. Roadmap
-- [ ] Mobile App for Tenants (iOS/Android).
-- [ ] Automated Bank Reconciliation (OFX/CSV import).
-- [ ] Advanced AI-driven occupancy forecasting.
-- [ ] WhatsApp integration for payment reminders.
+## 12. Roadmap
+
+- [x] Double-entry journal engine
+- [x] Bank reconciliation workspace (auto-match + manual match)
+- [x] Approval workflow for journals and accounts
+- [x] AP/AR Aging reports
+- [x] VAT Return report
+- [x] Budget management with line editor
+- [x] Full bilingual AR/EN support
+- [x] Granular per-user permissions
+- [ ] Mobile app for tenants (iOS/Android)
+- [ ] OFX/CSV bank statement import
+- [ ] WhatsApp integration for payment reminders
+- [ ] AI-driven occupancy forecasting
+- [ ] Multi-company/multi-branch support
 
 ---
 
-## 12. License
+## 13. License
 
 Distributed under the **MIT License**. See `LICENSE` for more information.
 
 ---
-**Maintained by the Advanced Agentic Coding Team.**
+
+*Sanad Property Management System — Built with precision for the Arabic real estate market.*
