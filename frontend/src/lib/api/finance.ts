@@ -139,6 +139,7 @@ export const financeApi = {
   createBudget: (data: any) => api.post('/budgets', data),
   approveBudget: (id: string) => api.post(`/budgets/${id}/approve`),
   getBudgetVariance: (id: string) => api.get(`/budgets/${id}/variance`),
+  upsertBudgetLines: (budgetId: string, lines: any[]) => api.post(`/budgets/${budgetId}/lines`, { lines }),
 
   // AR
   getTenantBalance: (tenantId: string) => api.get(`/ar/tenant/${tenantId}/balance`),
@@ -173,9 +174,12 @@ export const financeApi = {
 
   // Tax
   getTaxRates: () => api.get('/tax/rates'),
+  getVatReturn: (startDate: string, endDate: string) =>
+    api.get(`/tax/vat-return?startDate=${startDate}&endDate=${endDate}`),
 
-  // Fiscal Periods
+  // Fiscal Periods & Years
   getFiscalPeriods: (): Promise<FiscalPeriod[]> => api.get('/fiscal-periods'),
+  getFiscalYears: () => api.get('/fiscal-periods/fiscal-years'),
   closeFiscalPeriod: (id: string) => api.post(`/fiscal-periods/${id}/close`),
 
   // Export

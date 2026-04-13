@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
 
@@ -85,7 +86,7 @@ export default function ContractsPage() {
     try {
       await api.post("/leases", form);
       setShowModal(false); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -93,7 +94,7 @@ export default function ContractsPage() {
     if (!confirm(language === "ar" ? "إلغاء هذا العقد نهائياً؟" : "Cancel this lease permanently?")) return;
     setDeleting(id);
     try { await api.delete(`/leases/${id}`); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setDeleting(null); }
   };
 

@@ -1,11 +1,12 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { 
-  Loader2, Calendar, FileDown, 
+import {
+  Loader2, Calendar, FileDown,
   TrendingUp, TrendingDown, RefreshCcw,
   ArrowUpRight, ArrowDownRight, Printer
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -44,6 +45,25 @@ export default function IncomeStatementPage() {
     }
   };
 
+  const handleExport = async (format: 'pdf' | 'excel') => {
+    const id = toast.loading(format === 'pdf' ? "جاري تصدير PDF..." : "جاري تصدير Excel...");
+    try {
+      const res = await financeApi.exportReport('income-statement', format, { startDate, endDate } as any) as any;
+      const url = res?.url ?? res?.data?.url;
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res?.filename ?? res?.data?.filename ?? `income-statement.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+        a.click();
+        toast.success(format === 'pdf' ? "تم تصدير PDF" : "تم تصدير Excel", { id });
+      } else {
+        toast.error("لم يتم إرجاع رابط التحميل", { id });
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? e.message ?? "فشل التصدير", { id });
+    }
+  };
+
   const netIncome = data?.netIncome || 0;
   const isProfit = netIncome >= 0;
 
@@ -72,8 +92,8 @@ export default function IncomeStatementPage() {
       <ReportHeader 
         title="Income Statement" 
         dateRange={`Period: ${startDate} to ${endDate}`}
-        onExportPdf={() => alert("Exporting PDF...")}
-        onExportExcel={() => alert("Exporting Excel...")}
+        onExportPdf={() => handleExport('pdf')}
+        onExportExcel={() => handleExport('excel')}
       />
 
       {loading ? (

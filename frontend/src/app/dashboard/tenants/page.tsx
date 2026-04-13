@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useLanguage } from "@/context/language-context";
 
 const Sk = ({ className }: { className?: string }) => (
@@ -73,7 +74,7 @@ export default function TenantsPage() {
       if (editing) await api.patch(`/tenants/${editing.id}`, form);
       else         await api.post("/tenants", form);
       setShowModal(false); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -81,7 +82,7 @@ export default function TenantsPage() {
     if (!confirm(language === "ar" ? "حذف هذا المستأجر نهائياً؟" : "Delete this tenant permanently?")) return;
     setDeleting(id);
     try { await api.delete(`/tenants/${id}`); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setDeleting(null); }
   };
 

@@ -9,6 +9,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/language-context";
 import { useTheme } from "@/context/theme-context";
+import { toast } from "sonner";
 
 const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
 
@@ -43,7 +44,7 @@ export default function SettingsPage() {
       await api.patch("/settings", settings);
       setSavedMsg(true);
       setTimeout(() => setSavedMsg(false), 2500);
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -174,15 +175,6 @@ export default function SettingsPage() {
                         <option value="ar">العربية</option>
                         <option value="en">English</option>
                       </select>
-                    </div>
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">
-                        {language==="ar"?"المظهر":"Theme"}
-                      </label>
-                      <button onClick={toggleTheme} className={cn(inp, "cursor-pointer text-start flex items-center justify-between")}>
-                        <span>{theme === "light" ? (language==="ar"?"فاتح":"Light") : (language==="ar"?"داكن":"Dark")}</span>
-                        <span className="text-neutral-400 text-xs">{language==="ar"?"انقر للتبديل":"Click to toggle"}</span>
-                      </button>
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">

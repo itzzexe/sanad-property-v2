@@ -88,13 +88,17 @@ export function AccountDialog({
   const onSubmit = async (values: AccountFormValues) => {
     setLoading(true);
     try {
-      await financeApi.createAccount(values);
-      toast.success("تم إضافة الحساب بنجاح");
+      const result = await financeApi.createAccount(values) as any;
+      if (result?.pendingApproval) {
+        toast.info("تم إرسال الحساب للمراجعة — بانتظار موافقة المدير");
+      } else {
+        toast.success("تم إضافة الحساب بنجاح");
+      }
       form.reset();
       onSuccess?.();
       onOpenChange(false);
     } catch (error: any) {
-      toast.error(error.message || "فشل في إضافة الحساب");
+      toast.error(error?.response?.data?.message ?? error.message ?? "فشل في إضافة الحساب");
     } finally {
       setLoading(false);
     }

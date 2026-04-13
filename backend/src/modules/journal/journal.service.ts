@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { FiscalPeriodService } from '../fiscal-period/fiscal-period.service';
@@ -20,7 +20,7 @@ export class JournalService {
     private readonly fxService: FxService,
   ) {}
 
-  async create(dto: CreateJournalEntryDto, createdById: string) {
+  async create(dto: CreateJournalEntryDto, createdById: string, userRole = 'OWNER') {
     if (dto.lines.length < 2) {
       throw new BadRequestException('At least 2 lines are required.');
     }
@@ -60,6 +60,15 @@ export class JournalService {
     for (const acc of accounts) {
       if (!acc.isActive) {
         throw new BadRequestException(`Account ${acc.code} is inactive.`);
+      }
+      // Non-admins cannot post directly to parent accounts (accounts that have sub-accounts)
+      if (userRole !== 'ADMIN') {
+        const childCount = await this.prisma.account.count({ where: { parentId: acc.id } });
+        if (childCount > 0) {
+          throw new ForbiddenException(
+            `الحساب ${acc.code} يحتوي على حسابات فرعية. لا يمكن التسجيل المباشر في الحساب الرئيسي — يتطلب صلاحيات المدير.`,
+          );
+        }
       }
     }
 

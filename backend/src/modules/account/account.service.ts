@@ -61,7 +61,7 @@ export class AccountService {
     console.log('✅ System accounts seeded.');
   }
 
-  async create(dto: CreateAccountDto): Promise<Account> {
+  async create(dto: CreateAccountDto, needsApproval = false): Promise<Account> {
     // Unique code validation
     const existing = await this.prisma.account.findUnique({ where: { code: dto.code } });
     if (existing) throw new ConflictException('Account code already exists');
@@ -76,7 +76,11 @@ export class AccountService {
     }
 
     return this.prisma.account.create({
-      data: dto as any,
+      data: {
+        ...(dto as any),
+        isActive: !needsApproval,
+        pendingApproval: needsApproval,
+      },
     });
   }
 

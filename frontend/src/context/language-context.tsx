@@ -25,6 +25,8 @@ const translations: Record<Language, Record<string, string>> = {
     reports: "التقارير",
     settings: "الإعدادات",
     users: "المستخدمين",
+    approvals: "الموافقات",
+    "audit-logs": "سجل المراجعة",
     logout: "تسجيل الخروج",
     
     chart_of_accounts: "دليل الحسابات",
@@ -261,6 +263,8 @@ const translations: Record<Language, Record<string, string>> = {
     reports: "Reports",
     settings: "Settings",
     users: "Users",
+    approvals: "Approvals",
+    "audit-logs": "Audit Logs",
     logout: "Logout",
     
     chart_of_accounts: "Chart of Accounts",

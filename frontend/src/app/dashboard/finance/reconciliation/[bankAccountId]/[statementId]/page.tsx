@@ -22,6 +22,7 @@ import {
 import { financeApi } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
+import { toast } from "sonner";
 
 export default function ReconciliationWorkspacePage() {
   const { bankAccountId, statementId } = useParams();
@@ -58,7 +59,7 @@ export default function ReconciliationWorkspacePage() {
       await financeApi.manualMatch(selectedBankTxn.id, journalLineId);
       setShowMatchModal(false);
       load();
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? e.message); }
   };
 
   if (loading) return (

@@ -173,6 +173,45 @@ enum BankTxnType {
   DEBIT
 }
 
+enum Permission {
+  PROPERTY_VIEW
+  PROPERTY_CREATE
+  PROPERTY_EDIT
+  PROPERTY_DELETE
+  UNIT_VIEW
+  UNIT_CREATE
+  UNIT_EDIT
+  TENANT_VIEW
+  TENANT_CREATE
+  TENANT_EDIT
+  CONTRACT_VIEW
+  CONTRACT_CREATE
+  CONTRACT_EDIT
+  PAYMENT_VIEW
+  PAYMENT_CREATE
+  ACCOUNT_VIEW
+  ACCOUNT_CREATE
+  JOURNAL_VIEW
+  JOURNAL_CREATE
+  JOURNAL_POST
+  REPORT_VIEW
+  APPROVE_JOURNALS
+  APPROVE_ACCOUNTS
+  APPROVE_ALL
+  USER_MANAGE
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ApprovalType {
+  JOURNAL_ENTRY
+  ACCOUNT
+}
+
 // ─── MODELS ──────────────────────────────────────────────
 
 model User {
@@ -191,9 +230,12 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
   deletedAt    DateTime? @map("deleted_at")
 
-  properties    Property[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
+  properties        Property[]
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  permissions       UserPermission[]
+  approvalRequests  ApprovalRequest[] @relation("RequestedApprovals")
+  reviewedApprovals ApprovalRequest[] @relation("ReviewedApprovals")
 
   @@map("users")
 }
@@ -625,6 +667,7 @@ model Account {
   currency                String           @default("USD")
   isSystem                Boolean          @default(false) @map("is_system")
   isActive                Boolean          @default(true) @map("is_active")
+  pendingApproval         Boolean          @default(false) @map("pending_approval")
   description             String?
   createdAt               DateTime         @default(now()) @map("created_at")
   updatedAt               DateTime         @updatedAt @map("updated_at")
@@ -947,4 +990,38 @@ model BankTransaction {
   createdAt            DateTime      @default(now()) @map("created_at")
 
   @@map("bank_transactions")
+}
+
+// ─── PERMISSIONS & APPROVALS ────────────────────────────
+
+model UserPermission {
+  id         String     @id @default(cuid())
+  userId     String     @map("user_id")
+  permission Permission
+  grantedBy  String     @map("granted_by")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, permission])
+  @@map("user_permissions")
+}
+
+model ApprovalRequest {
+  id          String         @id @default(cuid())
+  type        ApprovalType
+  entityId    String         @map("entity_id")
+  entityLabel String?        @map("entity_label")
+  requestedBy String         @map("requested_by")
+  reviewedBy  String?        @map("reviewed_by")
+  status      ApprovalStatus @default(PENDING)
+  note        String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  requester User  @relation("RequestedApprovals", fields: [requestedBy], references: [id])
+  reviewer  User? @relation("ReviewedApprovals", fields: [reviewedBy], references: [id])
+
+  @@index([type, status])
+  @@map("approval_requests")
 }

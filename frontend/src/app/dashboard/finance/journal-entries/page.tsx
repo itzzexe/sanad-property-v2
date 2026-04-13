@@ -3,9 +3,10 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import {
-  Plus, Search, RotateCcw, Eye, CheckCircle2, FileText, Loader2
+  Plus, Search, RotateCcw, Eye, CheckCircle2, FileText, Loader2, Clock
 } from "lucide-react";
 import { financeApi } from "@/lib/api/finance";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/language-context";
 import { useCurrency } from "@/context/currency-context";
@@ -30,8 +31,9 @@ export default function JournalEntriesPage() {
   const { language, dir } = useLanguage();
   const { format }        = useCurrency();
 
-  const [entries, setEntries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [entries,        setEntries]        = useState<any[]>([]);
+  const [pendingIds,     setPendingIds]     = useState<Set<string>>(new Set());
+  const [loading,        setLoading]        = useState(true);
   const [filters, setFilters] = useState({
     search: "", status: "all", sourceType: "all", startDate: "", endDate: "",
   });
@@ -39,13 +41,18 @@ export default function JournalEntriesPage() {
   const load = async () => {
     setLoading(true);
     try {
-      const res = await financeApi.getJournalEntries({
-        status:     filters.status     !== "all" ? filters.status     : undefined,
-        sourceType: filters.sourceType !== "all" ? filters.sourceType : undefined,
-        startDate:  filters.startDate  || undefined,
-        endDate:    filters.endDate    || undefined,
-      });
+      const [res, approvals] = await Promise.all([
+        financeApi.getJournalEntries({
+          status:     filters.status     !== "all" ? filters.status     : undefined,
+          sourceType: filters.sourceType !== "all" ? filters.sourceType : undefined,
+          startDate:  filters.startDate  || undefined,
+          endDate:    filters.endDate    || undefined,
+        }),
+        api.get("/approvals?status=PENDING&type=JOURNAL_ENTRY").catch(() => ({ data: [] })),
+      ]);
       setEntries(Array.isArray(res) ? res : (res as any).data ?? []);
+      const pending = (approvals.data ?? approvals ?? []) as any[];
+      setPendingIds(new Set(pending.map((a: any) => a.entityId)));
     } catch { setEntries([]); }
     finally { setLoading(false); }
   };
@@ -181,9 +188,17 @@ export default function JournalEntriesPage() {
                     <td className="font-mono text-sm font-bold text-neutral-900 dark:text-white">{format(debit)}</td>
                     <td className="font-mono text-sm text-neutral-400">{format(credit)}</td>
                     <td>
-                      <span className={cn("inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", statusStyle[e.status] ?? statusStyle.DRAFT)}>
-                        {e.status}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={cn("inline-block text-[10px] font-bold px-2 py-0.5 rounded-full uppercase", statusStyle[e.status] ?? statusStyle.DRAFT)}>
+                          {e.status}
+                        </span>
+                        {pendingIds.has(e.id) && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400">
+                            <Clock className="w-2.5 h-2.5" />
+                            {t("موافقة","Approval")}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <Link href={`/dashboard/finance/journal-entries/${e.id}`}

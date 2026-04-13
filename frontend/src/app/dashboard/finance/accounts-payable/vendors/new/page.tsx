@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { financeApi } from "@/lib/api/finance";
 import { Loader2, Save } from "lucide-react";
+import { toast } from "sonner";
 
 export default function NewVendorPage() {
   const router = useRouter();
@@ -20,7 +21,7 @@ export default function NewVendorPage() {
     try {
       await financeApi.createVendor(form);
       router.push('/dashboard/finance/accounts-payable/vendors');
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? e.message); }
     finally { setSubmitting(false); }
   };
 

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { 
-  ArrowLeft, Send, RotateCcw, 
-  FileDown, Printer, Loader2, 
+import {
+  ArrowLeft, Send, RotateCcw,
+  FileDown, Printer, Loader2,
   AlertTriangle, CheckCircle2, Clock
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,25 +12,34 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { financeApi } from "@/lib/api/finance";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
+import { useLanguage } from "@/context/language-context";
+import { toast } from "sonner";
 
 export default function JournalEntryDetailPage() {
   const { id } = useParams();
   const router = useRouter();
   const { format } = useCurrency();
-  const [entry, setEntry] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const { language, dir } = useLanguage();
+  const t = (ar: string, en: string) => language === "ar" ? ar : en;
+  const [entry,          setEntry]          = useState<any>(null);
+  const [hasPendingApproval, setHasPendingApproval] = useState(false);
+  const [loading,        setLoading]        = useState(true);
 
-  useEffect(() => {
-    loadEntry();
-  }, [id]);
+  useEffect(() => { loadEntry(); }, [id]);
 
   const loadEntry = async () => {
     setLoading(true);
     try {
-      const res = await financeApi.getJournalEntry(id as string);
+      const [res, approvals] = await Promise.all([
+        financeApi.getJournalEntry(id as string),
+        api.get("/approvals?status=PENDING&type=JOURNAL_ENTRY").catch(() => []),
+      ]);
       setEntry(res);
+      const list = (approvals as any)?.data ?? approvals ?? [];
+      setHasPendingApproval(list.some((a: any) => a.entityId === (res as any).id));
     } catch (err) {
       console.error(err);
     } finally {
@@ -43,7 +52,7 @@ export default function JournalEntryDetailPage() {
       await financeApi.postJournalEntry(entry.id);
       loadEntry();
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err?.response?.data?.message ?? err.message);
     }
   };
 
@@ -69,26 +78,32 @@ export default function JournalEntryDetailPage() {
   const isUnbalanced = Math.abs(totalDebit - totalCredit) > 0.01;
 
   return (
-    <div className="space-y-8 pb-12">
-      <PageHeader 
-        title={`Entry #${entry.entryNumber}`}
+    <div className="space-y-8 pb-12" dir={dir}>
+      <PageHeader
+        title={`${t("قيد رقم","Entry #")}${entry.entryNumber}`}
         description={entry.description}
         actions={
           <div className="flex items-center gap-3">
             <Button variant="outline" size="sm">
-              <Printer className="w-4 h-4 mr-2" /> Print
+              <Printer className="w-4 h-4 me-2" /> {t("طباعة","Print")}
             </Button>
             <Button variant="outline" size="sm">
-              <FileDown className="w-4 h-4 mr-2" /> Export PDF
+              <FileDown className="w-4 h-4 me-2" /> {t("تصدير PDF","Export PDF")}
             </Button>
             {entry.status === 'POSTED' && (
               <Button variant="outline" size="sm" className="text-warning-600 border-warning-200 hover:bg-warning-50">
-                <RotateCcw className="w-4 h-4 mr-2" /> Reverse
+                <RotateCcw className="w-4 h-4 me-2" /> {t("عكس القيد","Reverse")}
               </Button>
             )}
-            {entry.status === 'DRAFT' && (
+            {entry.status === 'DRAFT' && hasPendingApproval && (
+              <span className="inline-flex items-center gap-1.5 h-9 px-4 rounded-lg text-xs font-bold bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 border border-amber-200 dark:border-amber-800/50">
+                <Clock className="w-3.5 h-3.5" />
+                {t("بانتظار الموافقة","Awaiting Approval")}
+              </span>
+            )}
+            {entry.status === 'DRAFT' && !hasPendingApproval && (
               <Button size="sm" onClick={handlePost}>
-                <Send className="w-4 h-4 mr-2" /> Post Entry
+                <Send className="w-4 h-4 me-2" /> {t("ترحيل القيد","Post Entry")}
               </Button>
             )}
           </div>
@@ -98,19 +113,19 @@ export default function JournalEntryDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         <Card noPadding className="lg:col-span-3">
           <div className="p-6 border-b border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
-             <h3 className="font-bold text-neutral-900 dark:text-neutral-50 uppercase tracking-wider text-xs">Transaction Lines</h3>
+             <h3 className="font-bold text-neutral-900 dark:text-neutral-50 uppercase tracking-wider text-xs">{t("أسطر القيد","Transaction Lines")}</h3>
              {isUnbalanced && (
-               <Badge variant="danger" className="animate-pulse">Unbalanced Entry</Badge>
+               <Badge variant="danger" className="animate-pulse">{t("قيد غير متوازن","Unbalanced Entry")}</Badge>
              )}
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-neutral-50 dark:bg-neutral-900/50 border-b border-neutral-100 dark:border-neutral-800">
-                  <th className="text-left p-4 font-bold text-neutral-400 text-[10px] uppercase">Account Code</th>
-                  <th className="text-left p-4 font-bold text-neutral-400 text-[10px] uppercase">Account Name</th>
-                  <th className="text-right p-4 font-bold text-neutral-400 text-[10px] uppercase">Debit</th>
-                  <th className="text-right p-4 font-bold text-neutral-400 text-[10px] uppercase">Credit</th>
+                  <th className="text-start p-4 font-bold text-neutral-400 text-[10px] uppercase">{t("رمز الحساب","Account Code")}</th>
+                  <th className="text-start p-4 font-bold text-neutral-400 text-[10px] uppercase">{t("اسم الحساب","Account Name")}</th>
+                  <th className="text-end p-4 font-bold text-neutral-400 text-[10px] uppercase">{t("مدين","Debit")}</th>
+                  <th className="text-end p-4 font-bold text-neutral-400 text-[10px] uppercase">{t("دائن","Credit")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100 dark:divide-neutral-800">
@@ -134,7 +149,7 @@ export default function JournalEntryDetailPage() {
               </tbody>
               <tfoot>
                 <tr className="bg-neutral-50 dark:bg-neutral-900/50 border-t-2 border-primary-100 dark:border-primary-900/30">
-                  <td colSpan={2} className="p-5 text-right font-black uppercase text-xs">Total Ledger Impact</td>
+                  <td colSpan={2} className="p-5 text-end font-black uppercase text-xs">{t("إجمالي القيد","Total Ledger Impact")}</td>
                   <td className="p-5 text-right font-mono font-black text-lg text-neutral-900 dark:text-neutral-50">
                     {format(totalDebit)}
                   </td>
@@ -161,32 +176,36 @@ export default function JournalEntryDetailPage() {
             <CardContent className="p-6 space-y-6">
                <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                     <span className="text-xs font-bold text-neutral-400">Entry Status</span>
-                     <Badge 
-                       variant={entry.status === 'POSTED' ? 'success' : 'neutral'}
-                       size="sm"
-                       className="gap-1.5"
-                     >
-                       {entry.status === 'POSTED' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                       {entry.status}
-                     </Badge>
+                     <span className="text-xs font-bold text-neutral-400">{t("حالة القيد","Entry Status")}</span>
+                     <div className="flex items-center gap-1.5">
+                       {hasPendingApproval && entry.status === 'DRAFT' && (
+                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400">
+                           <Clock className="w-2.5 h-2.5" />
+                           {t("موافقة","Approval")}
+                         </span>
+                       )}
+                       <Badge
+                         variant={entry.status === 'POSTED' ? 'success' : 'neutral'}
+                         size="sm"
+                         className="gap-1.5"
+                       >
+                         {entry.status === 'POSTED' ? <CheckCircle2 className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
+                         {entry.status === 'POSTED' ? t("مرحّل","Posted") : entry.status === 'REVERSED' ? t("معكوس","Reversed") : t("مسودة","Draft")}
+                       </Badge>
+                     </div>
                   </div>
                   <div className="h-[1px] w-full bg-neutral-100 dark:bg-neutral-800" />
                   <div className="space-y-1">
-                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Entry Date</p>
-                     <p className="text-sm font-black">{new Date(entry.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t("تاريخ القيد","Entry Date")}</p>
+                     <p className="text-sm font-black">{new Date(entry.date).toLocaleDateString(language === "ar" ? "ar-IQ" : "en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                   </div>
                   <div className="space-y-1">
-                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Source Type</p>
+                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t("المصدر","Source Type")}</p>
                      <p className="text-sm font-black">{entry.sourceType}</p>
-                  </div>
-                  <div className="space-y-1">
-                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Currency</p>
-                     <p className="text-sm font-black">USD/IQD (Mixed)</p>
                   </div>
                   {entry.reference && (
                     <div className="space-y-1">
-                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Reference</p>
+                       <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">{t("المرجع","Reference")}</p>
                        <p className="text-sm font-bold text-primary-500 overflow-hidden text-ellipsis">{entry.reference}</p>
                     </div>
                   )}

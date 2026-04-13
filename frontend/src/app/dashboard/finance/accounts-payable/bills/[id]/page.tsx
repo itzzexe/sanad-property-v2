@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { financeApi } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
 import { Loader2, DollarSign } from "lucide-react";
+import { toast } from "sonner";
 
 export default function BillDetailPage() {
   const { id } = useParams();
@@ -24,7 +25,7 @@ export default function BillDetailPage() {
     try {
       await financeApi.payBill(bill.id, { amount: bill.totalAmount, paymentDate: new Date().toISOString().slice(0, 10) });
       setBill({ ...bill, status: 'PAID' });
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? e.message); }
   };
 
   return (

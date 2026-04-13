@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { financeApi, Account } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Plus, Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Loader2, Clock } from "lucide-react";
 import { AccountDialog } from "@/components/finance/AccountDialog";
 import { useLanguage } from "@/context/language-context";
 
@@ -54,10 +54,18 @@ function AccountRow({ account, level = 0, onAddChild }: {
           {account.currencyCode || "USD"}
         </td>
         <td className="py-2.5 px-4">
-          <span className={cn("inline-block text-[10px] font-bold px-2 py-0.5 rounded-full",
-            account.isActive ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400")}>
-            {account.isActive ? "نشط" : "متوقف"}
-          </span>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={cn("inline-block text-[10px] font-bold px-2 py-0.5 rounded-full",
+              account.isActive ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400" : "bg-neutral-100 dark:bg-neutral-800 text-neutral-400")}>
+              {account.isActive ? "نشط" : "متوقف"}
+            </span>
+            {(account as any).pendingApproval && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400">
+                <Clock className="w-2.5 h-2.5" />
+                انتظار الموافقة
+              </span>
+            )}
+          </div>
         </td>
       </tr>
       {open && hasChildren && account.children!.map(child => (

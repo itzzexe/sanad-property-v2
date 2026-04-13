@@ -8,6 +8,7 @@ import {
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useLanguage } from "@/context/language-context";
+import { toast } from "sonner";
 
 const REPORT_TYPES = [
   {
@@ -82,7 +83,7 @@ export default function ReportsPage() {
       a.click();
       URL.revokeObjectURL(url);
     } catch (e: any) {
-      alert(e?.message ?? (language === "ar" ? "فشل تحميل التقرير" : "Failed to download report"));
+      toast.error(e?.message ?? (language === "ar" ? "فشل تحميل التقرير" : "Failed to download report"));
     } finally { setLoading(false); }
   };
 

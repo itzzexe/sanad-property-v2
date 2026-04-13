@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { financeApi, Account, Vendor } from "@/lib/api/finance";
 import { Loader2, Save, Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface BillLineForm { accountId: string; description: string; quantity: string; unitPrice: string; }
 
@@ -46,7 +47,7 @@ export default function NewBillPage() {
         })),
       });
       router.push('/dashboard/finance/accounts-payable/bills');
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { toast.error(e?.response?.data?.message ?? e.message); }
     finally { setSubmitting(false); }
   };
 

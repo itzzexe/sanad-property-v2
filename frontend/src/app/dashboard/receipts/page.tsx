@@ -127,11 +127,44 @@ export default function ReceiptsPage() {
                   </td>
                   <td>
                     <div className="flex items-center gap-1 justify-end">
-                      <button className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
+                      <button
+                        onClick={() => {
+                          const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Receipt</title><style>body{font-family:sans-serif;padding:32px;direction:${dir}}h2{margin-bottom:16px}p{margin:6px 0}</style></head><body>
+                            <h2>Receipt #${r.id?.slice(0,8).toUpperCase()}</h2>
+                            <p>${language === "ar" ? "المستأجر" : "Tenant"}: ${r.lease?.tenant?.firstName ?? ""} ${r.lease?.tenant?.lastName ?? ""}</p>
+                            <p>${language === "ar" ? "الوحدة" : "Unit"}: ${r.lease?.unit?.unitNumber ?? "—"}</p>
+                            <p>${language === "ar" ? "المبلغ" : "Amount"}: ${format(Number(r.amount))}</p>
+                            <p>${language === "ar" ? "التاريخ" : "Date"}: ${r.paidDate ? new Date(r.paidDate).toLocaleDateString() : "—"}</p>
+                            <p>${language === "ar" ? "طريقة الدفع" : "Method"}: ${r.paymentMethod ?? "—"}</p>
+                          </body></html>`;
+                          const blob = new Blob([html], { type: 'text/html' });
+                          const url  = URL.createObjectURL(blob);
+                          const w    = window.open(url, '_blank');
+                          w?.addEventListener('load', () => { w.print(); URL.revokeObjectURL(url); });
+                        }}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors"
                         title={language === "ar" ? "طباعة" : "Print"}>
                         <Printer className="w-3.5 h-3.5" />
                       </button>
-                      <button className="p-1.5 rounded-lg text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                      <button
+                        onClick={() => {
+                          const content = [
+                            `Receipt #${r.id?.slice(0,8).toUpperCase()}`,
+                            `${language === "ar" ? "المستأجر" : "Tenant"}: ${r.lease?.tenant?.firstName ?? ""} ${r.lease?.tenant?.lastName ?? ""}`,
+                            `${language === "ar" ? "الوحدة" : "Unit"}: ${r.lease?.unit?.unitNumber ?? "—"}`,
+                            `${language === "ar" ? "المبلغ" : "Amount"}: ${format(Number(r.amount))}`,
+                            `${language === "ar" ? "التاريخ" : "Date"}: ${r.paidDate ? new Date(r.paidDate).toLocaleDateString() : "—"}`,
+                            `${language === "ar" ? "طريقة الدفع" : "Method"}: ${r.paymentMethod ?? "—"}`,
+                          ].join('\n');
+                          const blob = new Blob([content], { type: 'text/plain' });
+                          const url  = URL.createObjectURL(blob);
+                          const a    = document.createElement('a');
+                          a.href     = url;
+                          a.download = `receipt-${r.id?.slice(0,8)}.txt`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
                         title={language === "ar" ? "تحميل" : "Download"}>
                         <Download className="w-3.5 h-3.5" />
                       </button>

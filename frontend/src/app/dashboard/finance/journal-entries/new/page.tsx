@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { 
-  Plus, Trash2, Save, Send, 
+import {
+  Plus, Trash2, Save, Send,
   Loader2, AlertTriangle, CheckCircle2,
-  Calendar, Info, FileText, ChevronDown
+  Calendar, Info, FileText, Clock
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
-import { 
-  Select, 
-  SelectContent, 
-  SelectItem, 
-  SelectTrigger, 
-  SelectValue 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
 } from "@/components/ui/select";
 import { financeApi, Account } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
+import { useLanguage } from "@/context/language-context";
+import { toast } from "sonner";
 
 interface JournalLineForm {
   accountId: string; 
@@ -35,6 +37,8 @@ interface JournalLineForm {
 export default function NewJournalEntryPage() {
   const router = useRouter();
   const { format } = useCurrency();
+  const { language, dir } = useLanguage();
+  const t = (ar: string, en: string) => language === "ar" ? ar : en;
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [sourceType, setSourceType] = useState("MANUAL");
@@ -45,6 +49,7 @@ export default function NewJournalEntryPage() {
     { accountId: '', debit: '', credit: '', description: '' },
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingApproval, setPendingApproval] = useState(false);
 
   useEffect(() => {
     financeApi.getAccounts().then(setAccounts).catch(console.error);
@@ -75,13 +80,13 @@ export default function NewJournalEntryPage() {
   };
 
   const submit = async (andPost: boolean) => {
-    if (!description) return alert("Description is required");
+    if (!description) { toast.error(t("الوصف مطلوب", "Description is required")); return; }
     setSubmitting(true);
     try {
       const entryData = {
-        date, 
-        description, 
-        notes, 
+        date,
+        description,
+        notes,
         sourceType,
         lines: lines
           .filter(l => l.accountId && (parseFloat(l.debit) > 0 || parseFloat(l.credit) > 0))
@@ -92,23 +97,57 @@ export default function NewJournalEntryPage() {
             description: l.description,
           })),
       };
-      
-      const entry = await financeApi.createJournalEntry(entryData);
+
+      const entry = await financeApi.createJournalEntry(entryData) as any;
+
+      if (entry.requiresApproval) {
+        // Entry needs admin approval before posting — stay on a "pending" state
+        setPendingApproval(true);
+        setSubmitting(false);
+        return;
+      }
+
       if (andPost) await financeApi.postJournalEntry(entry.id);
-      
       router.push('/dashboard/finance/journal-entries');
     } catch (e: any) {
-      alert(e.message);
+      toast.error(e?.response?.data?.message ?? e.message);
     } finally {
       setSubmitting(false);
     }
   };
 
+  if (pendingApproval) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center" dir={dir}>
+        <div className="w-16 h-16 rounded-full bg-amber-100 dark:bg-amber-950/40 flex items-center justify-center">
+          <Clock className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-black text-neutral-900 dark:text-white mb-2">
+            {t("القيد بانتظار الموافقة", "Entry Awaiting Approval")}
+          </h2>
+          <p className="text-sm text-neutral-500 dark:text-neutral-400 max-w-sm">
+            {t(
+              "تم إرسال القيد إلى المدير للمراجعة والموافقة قبل ترحيله إلى دفتر الأستاذ.",
+              "The journal entry has been submitted to an admin for review before it is posted to the ledger."
+            )}
+          </p>
+        </div>
+        <button
+          onClick={() => router.push('/dashboard/finance/journal-entries')}
+          className="h-10 px-6 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors"
+        >
+          {t("العودة إلى القيود", "Back to Journal Entries")}
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-8 pb-20">
-      <PageHeader 
-        title="Create Journal Entry"
-        description="Record a new transaction in the general ledger."
+    <div className="space-y-8 pb-20" dir={dir}>
+      <PageHeader
+        title={t("إنشاء قيد يومية", "Create Journal Entry")}
+        description={t("تسجيل معاملة جديدة في دفتر الأستاذ العام.", "Record a new transaction in the general ledger.")}
       />
 
       <div className="flex flex-col lg:flex-row gap-8">
@@ -315,21 +354,21 @@ export default function NewJournalEntryPage() {
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end gap-3 pt-4">
-             <Button 
-               variant="outline" 
+             <Button
+               variant="outline"
                className="h-11 px-8 font-bold"
                onClick={() => submit(false)}
                disabled={submitting}
              >
-               <Save className="w-4 h-4 mr-2" /> Save as Draft
+               <Save className="w-4 h-4 me-2" /> {t("حفظ كمسودة", "Save as Draft")}
              </Button>
-             <Button 
+             <Button
                className="h-11 px-10 font-black shadow-lg shadow-primary-500/20"
                disabled={submitting || !isBalanced}
                onClick={() => submit(true)}
              >
-               {submitting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
-               Save and Post to Ledger
+               {submitting ? <Loader2 className="w-4 h-4 me-2 animate-spin" /> : <Send className="w-4 h-4 me-2" />}
+               {t("حفظ وترحيل", "Save and Post to Ledger")}
              </Button>
           </div>
         </div>

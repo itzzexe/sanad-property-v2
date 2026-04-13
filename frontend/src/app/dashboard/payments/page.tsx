@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
+import { toast } from "sonner";
 
 const Sk = ({ className }: { className?: string }) => (
   <div className={cn("skeleton-shimmer rounded-lg", className)} />
@@ -83,7 +84,7 @@ export default function PaymentsPage() {
     try {
       await api.post("/payments", form);
       setShowModal(false); setForm({ ...emptyForm }); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 

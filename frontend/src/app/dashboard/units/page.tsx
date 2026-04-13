@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
 
@@ -92,7 +93,7 @@ export default function UnitsPage() {
       if (editing) await api.patch(`/units/${editing.id}`, form);
       else         await api.post("/units", form);
       setShowModal(false); load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -100,7 +101,7 @@ export default function UnitsPage() {
     if (!confirm(language === "ar" ? "حذف هذه الوحدة نهائياً؟" : "Delete this unit?")) return;
     setDeleting(id);
     try { await api.delete(`/units/${id}`); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setDeleting(null); }
   };
 

@@ -33,6 +33,7 @@ import { FxModule } from './modules/fx/fx.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { ReconciliationModule } from './modules/reconciliation/reconciliation.module';
 import { JournalModule } from './modules/journal/journal.module';
+import { ApprovalModule } from './modules/approval/approval.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { JournalModule } from './modules/journal/journal.module';
     TaxModule,
     ReconciliationModule,
     JournalModule,
+    ApprovalModule,
   ],
   providers: [
     {

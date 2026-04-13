@@ -1,46 +1,180 @@
 "use client";
+
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { ArrowLeft, Save, Loader2, CalendarDays } from "lucide-react";
 import { financeApi } from "@/lib/api/finance";
-import { Loader2, Save } from "lucide-react";
+import { api } from "@/lib/api";
+import { useLanguage } from "@/context/language-context";
+import { cn } from "@/lib/utils";
 
 export default function NewBudgetPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
-  const [fiscalYearId, setFiscalYearId] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  const { language, dir } = useLanguage();
+  const t = (ar: string, en: string) => language === "ar" ? ar : en;
 
-  const handleSubmit = async () => {
+  const [fiscalYears, setFiscalYears] = useState<any[]>([]);
+  const [properties,  setProperties]  = useState<any[]>([]);
+  const [loadingMeta, setLoadingMeta] = useState(true);
+
+  const [name,         setName]         = useState("");
+  const [fiscalYearId, setFiscalYearId] = useState("");
+  const [propertyId,   setPropertyId]   = useState("");
+  const [notes,        setNotes]        = useState("");
+  const [submitting,   setSubmitting]   = useState(false);
+  const [error,        setError]        = useState("");
+
+  useEffect(() => {
+    Promise.all([
+      api.get("/fiscal-periods/fiscal-years").catch(() => []),
+      api.get("/properties?limit=100").catch(() => []),
+    ]).then(([fy, pr]) => {
+      const years = (fy as any)?.data ?? fy ?? [];
+      const props = (pr as any)?.data ?? pr ?? [];
+      setFiscalYears(Array.isArray(years) ? years : []);
+      setProperties(Array.isArray(props) ? props : []);
+      if (years.length > 0) setFiscalYearId(years[0].id);
+    }).finally(() => setLoadingMeta(false));
+  }, []);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fiscalYearId) { setError(t("يرجى اختيار السنة المالية", "Please select a fiscal year")); return; }
     setSubmitting(true);
+    setError("");
     try {
-      await financeApi.createBudget({ name, fiscalYearId });
-      router.push('/dashboard/finance/budgets');
-    } catch (e: any) { alert(e.message); }
-    finally { setSubmitting(false); }
+      const budget = await financeApi.createBudget({
+        name,
+        fiscalYearId,
+        propertyId: propertyId || undefined,
+        notes: notes || undefined,
+      }) as any;
+      router.push(`/dashboard/finance/budgets/${budget.id}/lines`);
+    } catch (e: any) {
+      setError(e?.response?.data?.message ?? e.message ?? t("حدث خطأ", "An error occurred"));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
+  const inp = "w-full h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all";
+
   return (
-    <div className="space-y-6 max-w-lg">
-      <h1 className="text-2xl font-black text-[#242424]">ميزانية <span className="text-[#6264A7]">جديدة</span></h1>
-      <Card className="bg-white border-[#999999] shadow-sm rounded-md">
-        <CardContent className="p-6 space-y-4">
-          <div>
-            <Label className="text-xs font-bold text-[#222222]">اسم الميزانية</Label>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ميزانية 2025" className="mt-1 border-[#999999] text-sm" />
+    <div className={cn("max-w-lg space-y-6 page-enter", language === "ar" ? "text-right" : "")} dir={dir}>
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.back()}
+          className="p-2 rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-500 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div>
+          <h1 className="text-xl font-black text-neutral-900 dark:text-white">{t("ميزانية جديدة", "New Budget")}</h1>
+          <p className="text-xs text-neutral-400 mt-0.5">{t("أنشئ ميزانية لسنة مالية معينة", "Create a budget for a fiscal year")}</p>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-neutral-900 rounded-xl border border-neutral-100 dark:border-neutral-800 shadow-card overflow-hidden">
+        <div className="flex items-center gap-3 px-5 py-4 border-b border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
+          <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-950/40 flex items-center justify-center">
+            <CalendarDays className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
+          <span className="text-sm font-black text-neutral-700 dark:text-neutral-200">{t("بيانات الميزانية", "Budget Details")}</span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          {/* Budget Name */}
           <div>
-            <Label className="text-xs font-bold text-[#222222]">معرّف السنة المالية</Label>
-            <Input value={fiscalYearId} onChange={(e) => setFiscalYearId(e.target.value)} placeholder="FY-2025" className="mt-1 border-[#999999] text-sm" />
+            <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+              {t("اسم الميزانية", "Budget Name")} <span className="text-rose-500">*</span>
+            </label>
+            <input
+              required
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder={t("مثال: ميزانية 2025", "e.g. Budget 2025")}
+              className={inp}
+            />
           </div>
-          <Button onClick={handleSubmit} disabled={submitting || !name} className="bg-[#6264A7] hover:bg-[#5254A0] text-white text-xs font-bold gap-1.5 w-full">
-            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />} إنشاء
-          </Button>
-        </CardContent>
-      </Card>
+
+          {/* Fiscal Year */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+              {t("السنة المالية", "Fiscal Year")} <span className="text-rose-500">*</span>
+            </label>
+            {loadingMeta ? (
+              <div className="skeleton-shimmer h-10 rounded-lg" />
+            ) : fiscalYears.length === 0 ? (
+              <p className="text-xs text-amber-600 dark:text-amber-400 font-semibold py-2">
+                {t("لا توجد سنوات مالية — يرجى إنشاء سنة مالية أولاً", "No fiscal years found — please create one first")}
+              </p>
+            ) : (
+              <select
+                required
+                value={fiscalYearId}
+                onChange={e => setFiscalYearId(e.target.value)}
+                className={inp}
+              >
+                <option value="">{t("اختر السنة المالية", "Select fiscal year")}</option>
+                {fiscalYears.map((fy: any) => (
+                  <option key={fy.id} value={fy.id}>
+                    {fy.name ?? fy.year} ({new Date(fy.startDate).getFullYear()}–{new Date(fy.endDate).getFullYear()})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Property (optional) */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+              {t("العقار (اختياري)", "Property (optional)")}
+            </label>
+            <select
+              value={propertyId}
+              onChange={e => setPropertyId(e.target.value)}
+              className={inp}
+            >
+              <option value="">{t("ميزانية على مستوى الشركة", "Company-level budget")}</option>
+              {properties.map((p: any) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Notes */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-600 dark:text-neutral-400 mb-1.5">
+              {t("ملاحظات", "Notes")}
+            </label>
+            <textarea
+              rows={3}
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              placeholder={t("ملاحظات إضافية...", "Additional notes...")}
+              className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all resize-none"
+            />
+          </div>
+
+          {error && (
+            <p className="text-sm text-rose-600 dark:text-rose-400 font-semibold">{error}</p>
+          )}
+
+          <div className="flex gap-3 pt-1">
+            <button type="button" onClick={() => router.back()}
+              className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-bold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+              {t("إلغاء", "Cancel")}
+            </button>
+            <button
+              type="submit"
+              disabled={submitting || loadingMeta || !name || !fiscalYearId}
+              className="flex-1 flex items-center justify-center gap-2 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white text-sm font-bold transition-colors"
+            >
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+              {t("إنشاء الميزانية", "Create Budget")}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }

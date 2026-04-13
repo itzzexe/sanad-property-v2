@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { 
-  Loader2, Calendar, FileDown, 
-  RefreshCcw, Printer, ShieldCheck, 
-  AlertTriangle, CheckCircle2, ChevronDown 
+import {
+  Loader2, Calendar, FileDown,
+  RefreshCcw, Printer, ShieldCheck,
+  AlertTriangle, CheckCircle2, ChevronDown
 } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,25 @@ export default function BalanceSheetPage() {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleExport = async (format: 'pdf' | 'excel') => {
+    const id = toast.loading(format === 'pdf' ? "جاري تصدير PDF..." : "جاري تصدير Excel...");
+    try {
+      const res = await financeApi.exportReport('balance-sheet', format, { endDate: asOf } as any) as any;
+      const url = res?.url ?? res?.data?.url;
+      if (url) {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = res?.filename ?? res?.data?.filename ?? `balance-sheet.${format === 'pdf' ? 'pdf' : 'xlsx'}`;
+        a.click();
+        toast.success(format === 'pdf' ? "تم تصدير PDF" : "تم تصدير Excel", { id });
+      } else {
+        toast.error("لم يتم إرجاع رابط التحميل", { id });
+      }
+    } catch (e: any) {
+      toast.error(e?.response?.data?.message ?? e.message ?? "فشل التصدير", { id });
     }
   };
 
@@ -78,8 +98,8 @@ export default function BalanceSheetPage() {
       <ReportHeader 
         title="Balance Sheet" 
         dateRange={`As of: ${asOf}`}
-        onExportPdf={() => alert("Exporting PDF...")}
-        onExportExcel={() => alert("Exporting Excel...")}
+        onExportPdf={() => handleExport('pdf')}
+        onExportExcel={() => handleExport('excel')}
       />
 
       {loading ? (

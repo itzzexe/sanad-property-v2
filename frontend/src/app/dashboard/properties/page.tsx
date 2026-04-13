@@ -10,6 +10,7 @@ import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
+import { toast } from "sonner";
 
 const Sk = ({ className }: { className?: string }) => (
   <div className={cn("skeleton-shimmer rounded-lg", className)} />
@@ -174,7 +175,7 @@ export default function PropertiesPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     const err = validate();
-    if (err) { alert(err); return; }
+    if (err) { toast.error(err); return; }
     setSaving(true);
     try {
       const payload: any = { ...form };
@@ -189,7 +190,7 @@ export default function PropertiesPage() {
       else         await api.post("/properties", payload);
       setShowModal(false);
       load();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setSaving(false); }
   };
 
@@ -197,7 +198,7 @@ export default function PropertiesPage() {
     if (!confirm("حذف هذا العقار نهائياً؟")) return;
     setDeleting(id);
     try { await api.delete(`/properties/${id}`); load(); }
-    catch (err: any) { alert(err.message); }
+    catch (err: any) { toast.error(err?.response?.data?.message ?? err.message); }
     finally { setDeleting(null); }
   };
 

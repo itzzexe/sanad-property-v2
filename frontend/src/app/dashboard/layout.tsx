@@ -10,7 +10,7 @@ import {
   ArrowUpToLine, RefreshCw, CalendarRange, UserCog,
   PanelLeftClose, Bell, Moon, Sun, ChevronDown, Wallet,
   Menu, LogOut, User, Settings as SettingsIcon, ChevronRight,
-  FileBarChart, X
+  FileBarChart, X, ClipboardCheck
 } from "lucide-react";
 import { useTheme } from "@/context/theme-context";
 import { useLanguage } from "@/context/language-context";
@@ -40,6 +40,7 @@ const LABELS: Record<string, { ar: string; en: string }> = {
   "balance-sheet":      { ar: "الميزانية العمومية", en: "Balance Sheet"     },
   "cash-flow":          { ar: "التدفق النقدي",      en: "Cash Flow"         },
   "ar-aging":           { ar: "أعمار الديون",       en: "AR Aging"          },
+  approvals:            { ar: "الموافقات",            en: "Approvals"         },
   settings:             { ar: "الإعدادات",           en: "Settings"          },
   users:                { ar: "المستخدمون",          en: "Users"             },
   profile:              { ar: "الملف الشخصي",       en: "Profile"           },
@@ -93,10 +94,11 @@ const FINANCE_REPORTS = [
 ];
 
 const SYSTEM_NAV = [
-  { id: "reports",    href: "/dashboard/reports",    icon: BarChart3   },
-  { id: "users",      href: "/dashboard/users",      icon: UserCog     },
-  { id: "settings",   href: "/dashboard/settings",   icon: SettingsIcon},
-  { id: "audit-logs", href: "/dashboard/audit-logs", icon: FileBarChart},
+  { id: "reports",    href: "/dashboard/reports",    icon: BarChart3      },
+  { id: "approvals",  href: "/dashboard/approvals",  icon: ClipboardCheck },
+  { id: "users",      href: "/dashboard/users",      icon: UserCog        },
+  { id: "settings",   href: "/dashboard/settings",   icon: SettingsIcon   },
+  { id: "audit-logs", href: "/dashboard/audit-logs", icon: FileBarChart   },
 ];
 
 /* ─── Component ─────────────────────────────────────────── */
@@ -428,12 +430,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           {/* Right */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-all"
-            >
-              {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4 text-amber-400" />}
-            </button>
 
             <button
               onClick={() => setLanguage(language === "ar" ? "en" : "ar")}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   TrendingUp, Building2, Clock, FileCheck, CreditCard,
   FilePlus, UserPlus, BarChart2, ArrowUpRight, ArrowDownRight,
-  AlertCircle, Home, DollarSign, Activity, RefreshCw
+  AlertCircle, Home, DollarSign, Activity, RefreshCw, ClipboardCheck
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
@@ -66,24 +66,27 @@ function KPICard({
 export default function DashboardPage() {
   const { language, t, dir } = useLanguage();
   const { format } = useCurrency();
-  const [stats,        setStats]        = useState<any>(null);
-  const [chartData,    setChartData]    = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [loading,      setLoading]      = useState(true);
-  const [error,        setError]        = useState(false);
+  const [stats,           setStats]           = useState<any>(null);
+  const [chartData,       setChartData]       = useState<any[]>([]);
+  const [transactions,    setTransactions]    = useState<any[]>([]);
+  const [pendingCount,    setPendingCount]    = useState(0);
+  const [loading,         setLoading]         = useState(true);
+  const [error,           setError]           = useState(false);
 
   const load = async () => {
     setLoading(true);
     setError(false);
     try {
-      const [s, r, tr] = await Promise.all([
+      const [s, r, tr, pc] = await Promise.all([
         api.get("/dashboard/stats"),
         api.get("/dashboard/revenue-chart"),
         api.get("/dashboard/recent-payments?limit=6"),
+        api.get("/approvals/count/pending").catch(() => ({ count: 0 })),
       ]);
       setStats(s);
       setChartData(Array.isArray(r) ? r : []);
       setTransactions(Array.isArray(tr) ? tr : []);
+      setPendingCount((pc as any)?.count ?? 0);
     } catch {
       setError(true);
     } finally {
@@ -139,6 +142,24 @@ export default function DashboardPage() {
           {language === "ar" ? "تحديث" : "Refresh"}
         </button>
       </div>
+
+      {/* Pending Approvals Banner */}
+      {!loading && pendingCount > 0 && (
+        <Link href="/dashboard/approvals"
+          className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 hover:bg-amber-100 dark:hover:bg-amber-950/50 transition-colors">
+          <div className="flex items-center gap-3">
+            <ClipboardCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+            <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
+              {language === "ar"
+                ? `يوجد ${pendingCount} طلب${pendingCount > 1 ? "ات" : ""} بانتظار الموافقة`
+                : `${pendingCount} approval request${pendingCount > 1 ? "s" : ""} pending your review`}
+            </p>
+          </div>
+          <span className="text-xs font-bold text-amber-600 dark:text-amber-400 whitespace-nowrap">
+            {language === "ar" ? "عرض الكل ←" : "View all →"}
+          </span>
+        </Link>
+      )}
 
       {/* KPI Row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
