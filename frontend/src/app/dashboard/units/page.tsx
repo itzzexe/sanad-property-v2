@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import {
   DoorOpen, Plus, Search, Edit, Trash2,
-  Home, Building2, Loader2, X
+  Home, Building2, Loader2, X, Paperclip
 } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
+import { AttachmentManager } from "@/components/shared/attachment-manager";
 
 const Sk = ({ className }: { className?: string }) => (
   <div className={cn("skeleton-shimmer rounded-lg", className)} />
@@ -45,6 +46,7 @@ export default function UnitsPage() {
   const [editing,      setEditing]      = useState<any>(null);
   const [saving,       setSaving]       = useState(false);
   const [deleting,     setDeleting]     = useState<string | null>(null);
+  const [attachItem,   setAttachItem]   = useState<any>(null);
 
   const emptyForm = {
     unitNumber:"", floor:"", unitType:"APARTMENT",
@@ -209,6 +211,10 @@ export default function UnitsPage() {
                   </td>
                   <td>
                     <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setAttachItem(u)} title={language === "ar" ? "المرفقات" : "Attachments"}
+                        className="p-1.5 rounded-lg text-neutral-400 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-950/30 transition-colors">
+                        <Paperclip className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => openEdit(u)} className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
                         <Edit className="w-3.5 h-3.5" />
                       </button>
@@ -229,8 +235,9 @@ export default function UnitsPage() {
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)} />
-          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 scale-in max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 sticky top-0 bg-white dark:bg-neutral-900 z-10">
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 flex flex-col overflow-hidden max-h-[calc(100dvh-2rem)]">
+            {/* Header */}
+            <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
               <h2 className="font-bold text-neutral-900 dark:text-white">
                 {editing ? (language === "ar" ? "تعديل الوحدة" : "Edit Unit") : (language === "ar" ? "إضافة وحدة جديدة" : "Add New Unit")}
               </h2>
@@ -238,7 +245,7 @@ export default function UnitsPage() {
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <form onSubmit={handleSave} className="p-6 space-y-4">
+            <form id="unit-form" onSubmit={handleSave} className="flex-1 overflow-y-auto p-6 space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-semibold text-neutral-600 dark:text-neutral-400">{language === "ar" ? "رقم الوحدة *" : "Unit Number *"}</label>
@@ -286,18 +293,43 @@ export default function UnitsPage() {
                   </select>
                 </div>
               </div>
-              <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowModal(false)}
-                  className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
-                  {language === "ar" ? "إلغاء" : "Cancel"}
-                </button>
-                <button type="submit" disabled={saving}
-                  className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
-                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {editing ? (language === "ar" ? "حفظ" : "Save") : (language === "ar" ? "إضافة" : "Add")}
-                </button>
-              </div>
             </form>
+            {/* Footer */}
+            <div className="flex-shrink-0 flex gap-3 px-6 py-4 border-t border-neutral-100 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-800/50">
+              <button type="button" onClick={() => setShowModal(false)}
+                className="flex-1 h-10 rounded-lg border border-neutral-200 dark:border-neutral-700 text-sm font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                {language === "ar" ? "إلغاء" : "Cancel"}
+              </button>
+              <button type="submit" form="unit-form" disabled={saving}
+                className="flex-1 h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2">
+                {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                {editing ? (language === "ar" ? "حفظ" : "Save") : (language === "ar" ? "إضافة" : "Add")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Attachments Modal */}
+      {attachItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAttachItem(null)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-xl border border-neutral-100 dark:border-neutral-800 flex flex-col overflow-hidden max-h-[calc(100dvh-2rem)]">
+            <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800">
+              <div className="flex items-center gap-2">
+                <Paperclip className="w-4 h-4 text-violet-500" />
+                <h2 className="font-bold text-neutral-900 dark:text-white text-sm">
+                  {language === "ar" ? "مرفقات الوحدة" : "Unit Attachments"} — {attachItem.unitNumber}
+                </h2>
+              </div>
+              <button onClick={() => setAttachItem(null)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <AttachmentManager entityType="UNIT" entityId={attachItem.id}
+                title={language === "ar" ? "وثائق الوحدة" : "Unit Documents"} />
+            </div>
           </div>
         </div>
       )}

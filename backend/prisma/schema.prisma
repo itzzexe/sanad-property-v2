@@ -114,6 +114,8 @@ enum AccountType {
   EQUITY
   REVENUE
   EXPENSE
+  OFF_BALANCE_DR
+  OFF_BALANCE_CR
 }
 
 enum JournalStatus {
@@ -504,15 +506,16 @@ model AuditLog {
 }
 
 model SystemSettings {
-  id               String   @id @default(uuid())
-  organizationName String   @default("RentFlow") @map("organization_name")
-  address          String?
-  description      String?
-  defaultCurrency  Currency @default(IQD) @map("default_currency")
-  exchangeRateUSD  Float    @default(1460.0) @map("exchange_rate_usd")
-  language         String   @default("ar")
-  logo             String?
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  organizationName  String   @default("RentFlow") @map("organization_name")
+  address           String?
+  description       String?
+  defaultCurrency   Currency @default(IQD) @map("default_currency")
+  exchangeRateUSD   Float    @default(1460.0) @map("exchange_rate_usd")
+  language          String   @default("ar")
+  logo              String?
+  accountTypeRanges Json?    @map("account_type_ranges")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   @@map("system_settings")
 }

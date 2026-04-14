@@ -1,6 +1,20 @@
-import { IsString, IsNumber, IsNotEmpty, IsEnum, Min, IsOptional } from 'class-validator';
+import { IsString, IsNumber, IsNotEmpty, IsEnum, Min, IsOptional, IsObject } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Currency } from '@prisma/client';
+
+export class AccountTypeRangeDto {
+  from: number;
+  to: number;
+}
+
+export class AccountTypeRangesDto {
+  ASSET?: AccountTypeRangeDto;
+  LIABILITY?: AccountTypeRangeDto;
+  EXPENSE?: AccountTypeRangeDto;
+  REVENUE?: AccountTypeRangeDto;
+  OFF_BALANCE_DR?: AccountTypeRangeDto;
+  OFF_BALANCE_CR?: AccountTypeRangeDto;
+}
 
 export class UpdateSettingsDto {
   @ApiProperty({ example: 'سند للعقارات' })
@@ -31,4 +45,9 @@ export class UpdateSettingsDto {
   @IsString()
   @IsOptional()
   logo?: string;
+
+  @ApiProperty({ required: false, description: 'Account type code ranges' })
+  @IsObject()
+  @IsOptional()
+  accountTypeRanges?: AccountTypeRangesDto;
 }

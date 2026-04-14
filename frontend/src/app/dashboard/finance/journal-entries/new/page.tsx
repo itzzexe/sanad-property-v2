@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   Plus, Trash2, Save, Send,
   Loader2, AlertTriangle, CheckCircle2,
-  Calendar, Info, FileText, Clock
+  Calendar, Info, FileText, Clock, Paperclip, X
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ import {
   SelectValue
 } from "@/components/ui/select";
 import { financeApi, Account } from "@/lib/api/finance";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
 import { useLanguage } from "@/context/language-context";
@@ -50,6 +51,7 @@ export default function NewJournalEntryPage() {
   ]);
   const [submitting, setSubmitting] = useState(false);
   const [pendingApproval, setPendingApproval] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   useEffect(() => {
     financeApi.getAccounts().then(setAccounts).catch(console.error);
@@ -99,6 +101,15 @@ export default function NewJournalEntryPage() {
       };
 
       const entry = await financeApi.createJournalEntry(entryData) as any;
+
+      // Upload pending files
+      for (const file of pendingFiles) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('entityType', 'JOURNAL_ENTRY');
+        fd.append('entityId', entry.id);
+        await api.post('/attachments/upload', fd);
+      }
 
       if (entry.requiresApproval) {
         // Entry needs admin approval before posting — stay on a "pending" state
@@ -350,6 +361,37 @@ export default function NewJournalEntryPage() {
                  </div>
                )}
             </div>
+          </Card>
+
+          {/* File Attachments */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm flex items-center gap-2">
+                <Paperclip className="w-4 h-4" />
+                {t("المرفقات", "Attachments")}
+                <span className="text-xs font-normal text-muted-foreground">{t("(صور وPDF فقط)", "(images & PDF only)")}</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {pendingFiles.map((f, i) => (
+                  <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-muted text-sm font-medium">
+                    <FileText className="w-3.5 h-3.5 text-muted-foreground flex-shrink-0" />
+                    <span className="max-w-[140px] truncate">{f.name}</span>
+                    <button type="button" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive transition-colors">
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <label className="flex items-center gap-2 cursor-pointer w-fit">
+                <input type="file" className="hidden" accept="image/*,application/pdf"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) { setPendingFiles(prev => [...prev, f]); e.target.value = ''; } }} />
+                <Button type="button" variant="outline" size="sm" className="gap-2 pointer-events-none">
+                  <Plus className="w-4 h-4" /> {t("إضافة ملف", "Add File")}
+                </Button>
+              </label>
+            </CardContent>
           </Card>
 
           {/* Footer Actions */}

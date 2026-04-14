@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { financeApi, Account, Vendor } from "@/lib/api/finance";
-import { Loader2, Save, Plus, Trash2 } from "lucide-react";
+import { api } from "@/lib/api";
+import { Loader2, Save, Plus, Trash2, Paperclip, X, FileText } from "lucide-react";
 import { toast } from "sonner";
 
 interface BillLineForm { accountId: string; description: string; quantity: string; unitPrice: string; }
@@ -21,6 +22,7 @@ export default function NewBillPage() {
   const [dueDate, setDueDate] = useState('');
   const [lines, setLines] = useState<BillLineForm[]>([{ accountId: '', description: '', quantity: '1', unitPrice: '' }]);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   useEffect(() => {
     financeApi.getVendors().then(d => setVendors(Array.isArray(d) ? d : [])).catch(console.error);
@@ -39,13 +41,20 @@ export default function NewBillPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await financeApi.createBill({
+      const bill = await financeApi.createBill({
         vendorId, billNumber, date, dueDate,
         lines: lines.filter(l => l.accountId).map(l => ({
           accountId: l.accountId, description: l.description,
           quantity: parseFloat(l.quantity) || 1, unitPrice: parseFloat(l.unitPrice) || 0,
         })),
-      });
+      }) as any;
+      for (const file of pendingFiles) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('entityType', 'BILL');
+        fd.append('entityId', bill.id);
+        await api.post('/attachments/upload', fd);
+      }
       router.push('/dashboard/finance/accounts-payable/bills');
     } catch (e: any) { toast.error(e?.response?.data?.message ?? e.message); }
     finally { setSubmitting(false); }
@@ -107,6 +116,34 @@ export default function NewBillPage() {
                 <td /></tr>
             </tbody>
           </table>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white border-[#999999] shadow-sm rounded-md">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm flex items-center gap-2 font-black text-[#242424]">
+            <Paperclip className="w-4 h-4" /> المرفقات <span className="text-xs font-normal text-[#999999]">(صور وPDF فقط)</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {pendingFiles.map((f, i) => (
+              <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#F0F0F0] text-xs font-medium text-[#242424]">
+                <FileText className="w-3.5 h-3.5 text-[#999999] flex-shrink-0" />
+                <span className="max-w-[140px] truncate">{f.name}</span>
+                <button type="button" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))} className="text-[#999999] hover:text-red-500 transition-colors">
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <label className="flex items-center gap-2 cursor-pointer w-fit">
+            <input type="file" className="hidden" accept="image/*,application/pdf"
+              onChange={e => { const f = e.target.files?.[0]; if (f) { setPendingFiles(prev => [...prev, f]); e.target.value = ''; } }} />
+            <Button type="button" variant="outline" size="sm" className="gap-2 pointer-events-none border-[#999999] text-xs">
+              <Plus className="w-3.5 h-3.5" /> إضافة ملف
+            </Button>
+          </label>
         </CardContent>
       </Card>
 

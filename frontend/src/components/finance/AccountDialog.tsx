@@ -9,6 +9,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -33,10 +34,12 @@ import { financeApi } from "@/lib/api/finance";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
+import { api } from "@/lib/api";
+
 const accountSchema = z.object({
   code: z.string().min(1, "رمز الحساب مطلوب"),
   name: z.string().min(1, "اسم الحساب مطلوب"),
-  type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]),
+  type: z.enum(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE", "OFF_BALANCE_DR", "OFF_BALANCE_CR"]),
   subtype: z.string().optional(),
   parentId: z.string().optional(),
   currency: z.string().min(1, "العملة مطلوبة"),
@@ -73,6 +76,14 @@ export function AccountDialog({
     },
   });
 
+  const [settings, setSettings] = useState<any>({});
+
+  useEffect(() => {
+    api.get("/settings").then(res => {
+      if (res) setSettings(res);
+    }).catch(() => {});
+  }, []);
+
   // Update parentId when parentAccount changes
   useEffect(() => {
     if (open) {
@@ -85,10 +96,43 @@ export function AccountDialog({
     }
   }, [parentAccount, open, form]);
 
+  // Auto-detect type based on code
+  const codeValue = form.watch("code");
+  useEffect(() => {
+    if (!parentAccount && codeValue && settings.accountTypeRanges) {
+      const codeNum = parseInt(codeValue, 10);
+      if (!isNaN(codeNum)) {
+        const ranges = settings.accountTypeRanges;
+        
+        // Add defaults if missing in settings just in case
+        const definitions = [
+          { key: "ASSET", from: ranges.ASSET?.from ?? 1000, to: ranges.ASSET?.to ?? 1999 },
+          { key: "LIABILITY", from: ranges.LIABILITY?.from ?? 2000, to: ranges.LIABILITY?.to ?? 2999 },
+          { key: "EXPENSE", from: ranges.EXPENSE?.from ?? 3000, to: ranges.EXPENSE?.to ?? 3999 },
+          { key: "REVENUE", from: ranges.REVENUE?.from ?? 4000, to: ranges.REVENUE?.to ?? 4999 },
+          { key: "OFF_BALANCE_DR", from: ranges.OFF_BALANCE_DR?.from ?? 5000, to: ranges.OFF_BALANCE_DR?.to ?? 5999 },
+          { key: "OFF_BALANCE_CR", from: ranges.OFF_BALANCE_CR?.from ?? 6000, to: ranges.OFF_BALANCE_CR?.to ?? 6999 },
+        ];
+
+        for (const def of definitions) {
+          if (codeNum >= def.from && codeNum <= def.to) {
+            form.setValue("type", def.key as any);
+            break;
+          }
+        }
+      }
+    }
+  }, [codeValue, settings.accountTypeRanges, parentAccount, form]);
+
   const onSubmit = async (values: AccountFormValues) => {
     setLoading(true);
     try {
-      const result = await financeApi.createAccount(values) as any;
+      const payload = { ...values };
+      if (!payload.parentId) delete payload.parentId;
+      if (!payload.subtype) delete payload.subtype;
+      if (!payload.description) delete payload.description;
+
+      const result = await financeApi.createAccount(payload) as any;
       if (result?.pendingApproval) {
         toast.info("تم إرسال الحساب للمراجعة — بانتظار موافقة المدير");
       } else {
@@ -109,6 +153,7 @@ export function AccountDialog({
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>إضافة حساب جديد</DialogTitle>
+          <DialogDescription className="sr-only">نموذج إضافة حساب مالي جديد</DialogDescription>
           {parentAccount && (
             <p className="text-sm text-muted-foreground">
               حساب أب: {parentAccount.code} - {parentAccount.name}
@@ -154,6 +199,8 @@ export function AccountDialog({
                         <SelectItem value="EQUITY">حقوق ملكية (Equity)</SelectItem>
                         <SelectItem value="REVENUE">إيرادات (Revenue)</SelectItem>
                         <SelectItem value="EXPENSE">مصاريف (Expense)</SelectItem>
+                        <SelectItem value="OFF_BALANCE_DR">خارج الميزانية — مدين (Off-Balance Debit)</SelectItem>
+                        <SelectItem value="OFF_BALANCE_CR">خارج الميزانية — دائن (Off-Balance Credit)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

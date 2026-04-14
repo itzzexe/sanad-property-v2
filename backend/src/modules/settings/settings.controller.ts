@@ -1,4 +1,4 @@
-import { Controller, Get, Put, Body, UseGuards, Req, Query } from '@nestjs/common';
+import { Controller, Get, Put, Patch, Body, UseGuards, Req, Query } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SettingsService } from './settings.service';
@@ -27,6 +27,7 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.OWNER)
   @Put()
+  @Patch()
   @ApiOperation({ summary: 'Update global system settings (Admin only)' })
   async updateSettings(@Body() body: UpdateSettingsDto, @Req() req: any) {
     return this.settingsService.updateSettings(body, req.user.sub);

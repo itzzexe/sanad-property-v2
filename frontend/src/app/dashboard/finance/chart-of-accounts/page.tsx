@@ -3,9 +3,11 @@
 import { useState, useEffect } from "react";
 import { financeApi, Account } from "@/lib/api/finance";
 import { cn } from "@/lib/utils";
-import { ChevronDown, ChevronRight, Plus, Loader2, Clock } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Loader2, Clock, Trash2 } from "lucide-react";
 import { AccountDialog } from "@/components/finance/AccountDialog";
 import { useLanguage } from "@/context/language-context";
+import { useRole } from "@/lib/hooks/useRole";
+import { toast } from "sonner";
 
 const TYPE_COLORS: Record<string, string> = {
   ASSET:     "bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400",
@@ -13,14 +15,18 @@ const TYPE_COLORS: Record<string, string> = {
   EQUITY:    "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400",
   REVENUE:   "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400",
   EXPENSE:   "bg-rose-100 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400",
+  OFF_BALANCE_DR: "bg-violet-100 dark:bg-violet-950/40 text-violet-700 dark:text-violet-400",
+  OFF_BALANCE_CR: "bg-cyan-100 dark:bg-cyan-950/40 text-cyan-700 dark:text-cyan-400",
 };
 
-function AccountRow({ account, level = 0, onAddChild }: {
+function AccountRow({ account, level = 0, onAddChild, onDelete }: {
   account: Account & { children?: Account[] };
   level?: number;
   onAddChild: (a: Account) => void;
+  onDelete: (a: Account) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const { isAdmin } = useRole();
   const hasChildren = (account.children?.length ?? 0) > 0;
 
   return (
@@ -39,10 +45,18 @@ function AccountRow({ account, level = 0, onAddChild }: {
         <td className="py-2.5 px-4">
           <div className="flex items-center justify-between gap-2">
             <span className="text-sm font-semibold text-neutral-900 dark:text-white">{account.name}</span>
-            <button onClick={() => onAddChild(account)}
-              className="opacity-0 group-hover:opacity-100 p-1 rounded-md text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-all flex-shrink-0">
-              <Plus className="w-3 h-3" />
-            </button>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+              <button onClick={() => onAddChild(account)}
+                className="p-1 rounded-md text-neutral-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/30">
+                <Plus className="w-3 h-3" />
+              </button>
+              {isAdmin && (
+                <button onClick={() => onDelete(account)}
+                  className="p-1 rounded-md text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30">
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
           </div>
         </td>
         <td className="py-2.5 px-4">
@@ -69,7 +83,7 @@ function AccountRow({ account, level = 0, onAddChild }: {
         </td>
       </tr>
       {open && hasChildren && account.children!.map(child => (
-        <AccountRow key={child.id} account={child as any} level={level + 1} onAddChild={onAddChild} />
+        <AccountRow key={child.id} account={child as any} level={level + 1} onAddChild={onAddChild} onDelete={onDelete} />
       ))}
     </>
   );
@@ -88,6 +102,19 @@ export default function ChartOfAccountsPage() {
       .then(setAccounts)
       .catch(console.error)
       .finally(() => setLoading(false));
+  };
+
+  const handleDeleteAccount = async (account: Account) => {
+    if (!window.confirm(language === "ar" ? `هل أنت متأكد من حذف الحساب "${account.name}"؟ لا يمكن التراجع عن هذا الإجراء.` : `Are you sure you want to delete account "${account.name}"? This action cannot be undone.`)) {
+      return;
+    }
+    try {
+      await financeApi.deleteAccount(account.id);
+      toast.success(language === "ar" ? "تم حذف الحساب بنجاح" : "Account deleted successfully");
+      fetchAccounts();
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message ?? error.message ?? (language === "ar" ? "فشل في حذف الحساب" : "Failed to delete account"));
+    }
   };
 
   useEffect(() => { fetchAccounts(); }, []);
@@ -147,7 +174,7 @@ export default function ChartOfAccountsPage() {
             </tr>
           </thead>
           <tbody>
-            {roots.map(a => <AccountRow key={a.id} account={a as any} onAddChild={pa => { setParentAccount(pa); setDialogOpen(true); }} />)}
+            {roots.map(a => <AccountRow key={a.id} account={a as any} onAddChild={pa => { setParentAccount(pa); setDialogOpen(true); }} onDelete={handleDeleteAccount} />)}
           </tbody>
         </table>
       </div>

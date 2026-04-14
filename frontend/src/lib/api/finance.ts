@@ -82,6 +82,7 @@ export const financeApi = {
   createAccount: (data: Partial<Account>) => api.post('/accounts', data),
   updateAccount: (id: string, data: Partial<Account>) => api.put(`/accounts/${id}`, data),
   deactivateAccount: (id: string) => api.patch(`/accounts/${id}/deactivate`),
+  deleteAccount: (id: string) => api.delete(`/accounts/${id}`),
 
   // Journal Entries
   getJournalEntries: (params?: { page?: number; status?: string; sourceType?: string; startDate?: string; endDate?: string }) => {

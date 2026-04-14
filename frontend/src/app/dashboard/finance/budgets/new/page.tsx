@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save, Loader2, CalendarDays } from "lucide-react";
+import { ArrowLeft, Save, Loader2, CalendarDays, Paperclip, Plus, X, FileText } from "lucide-react";
 import { financeApi } from "@/lib/api/finance";
 import { api } from "@/lib/api";
 import { useLanguage } from "@/context/language-context";
@@ -23,6 +23,7 @@ export default function NewBudgetPage() {
   const [notes,        setNotes]        = useState("");
   const [submitting,   setSubmitting]   = useState(false);
   const [error,        setError]        = useState("");
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   useEffect(() => {
     Promise.all([
@@ -49,6 +50,13 @@ export default function NewBudgetPage() {
         propertyId: propertyId || undefined,
         notes: notes || undefined,
       }) as any;
+      for (const file of pendingFiles) {
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('entityType', 'BUDGET');
+        fd.append('entityId', budget.id);
+        await api.post('/attachments/upload', fd);
+      }
       router.push(`/dashboard/finance/budgets/${budget.id}/lines`);
     } catch (e: any) {
       setError(e?.response?.data?.message ?? e.message ?? t("حدث خطأ", "An error occurred"));
@@ -153,6 +161,31 @@ export default function NewBudgetPage() {
               placeholder={t("ملاحظات إضافية...", "Additional notes...")}
               className="w-full rounded-lg border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 px-3 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400 transition-all resize-none"
             />
+          </div>
+
+          {/* Attachments */}
+          <div className="rounded-lg border border-neutral-200 dark:border-neutral-700 p-4 space-y-3">
+            <p className="text-xs font-bold text-neutral-600 dark:text-neutral-400 flex items-center gap-1.5">
+              <Paperclip className="w-3.5 h-3.5" /> {t("المرفقات", "Attachments")} <span className="font-normal text-neutral-400">{t("(صور وPDF)", "(images & PDF)")}</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {pendingFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                  <FileText className="w-3.5 h-3.5 text-neutral-400 flex-shrink-0" />
+                  <span className="max-w-[140px] truncate">{f.name}</span>
+                  <button type="button" onClick={() => setPendingFiles(prev => prev.filter((_, j) => j !== i))} className="text-neutral-400 hover:text-red-500 transition-colors">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              ))}
+            </div>
+            <label className="flex items-center gap-2 cursor-pointer w-fit">
+              <input type="file" className="hidden" accept="image/*,application/pdf"
+                onChange={e => { const f = e.target.files?.[0]; if (f) { setPendingFiles(prev => [...prev, f]); e.target.value = ''; } }} />
+              <span className="flex items-center gap-1.5 px-3 h-8 rounded-lg border border-neutral-200 dark:border-neutral-700 text-xs font-semibold text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors">
+                <Plus className="w-3.5 h-3.5" /> {t("إضافة ملف", "Add File")}
+              </span>
+            </label>
           </div>
 
           {error && (

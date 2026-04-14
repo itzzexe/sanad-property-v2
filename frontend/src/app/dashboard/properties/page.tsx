@@ -4,8 +4,9 @@ import { useState, useEffect } from "react";
 import {
   Building2, Plus, Search, LayoutGrid, List,
   Edit, Trash2, Home, Users, DollarSign,
-  Loader2, X, FileText, ChevronLeft
+  Loader2, X, FileText, ChevronLeft, Paperclip
 } from "lucide-react";
+import { AttachmentManager } from "@/components/shared/attachment-manager";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { useCurrency } from "@/context/currency-context";
@@ -80,6 +81,7 @@ export default function PropertiesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing]     = useState<any>(null);
   const [saving, setSaving]       = useState(false);
+  const [attachItem, setAttachItem] = useState<any>(null);
   const [deleting, setDeleting]   = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(0);
   const [form, setForm]           = useState<PForm>({ ...emptyForm });
@@ -328,6 +330,9 @@ export default function PropertiesPage() {
                     )}
                   </div>
                   <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                    <button onClick={() => setAttachItem(p)} className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-violet-600 hover:bg-violet-50 transition-colors">
+                      <Paperclip className="w-3.5 h-3.5" />
+                    </button>
                     <button onClick={() => openEdit(p)} className="w-7 h-7 rounded-lg bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center text-neutral-500 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                       <Edit className="w-3.5 h-3.5" />
                     </button>
@@ -397,6 +402,9 @@ export default function PropertiesPage() {
                   </td>
                   <td>
                     <div className="flex items-center gap-1 justify-end">
+                      <button onClick={() => setAttachItem(p)} className="p-1.5 rounded-lg text-neutral-400 hover:text-violet-600 hover:bg-violet-50 transition-colors">
+                        <Paperclip className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg text-neutral-400 hover:text-blue-600 hover:bg-blue-50 transition-colors">
                         <Edit className="w-3.5 h-3.5" />
                       </button>
@@ -633,6 +641,27 @@ export default function PropertiesPage() {
                 </div>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Attachments Modal */}
+      {attachItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setAttachItem(null)} />
+          <div className="relative z-10 bg-white dark:bg-neutral-900 rounded-2xl shadow-xl-soft w-full max-w-lg border border-neutral-100 dark:border-neutral-800 flex flex-col overflow-hidden max-h-[calc(100dvh-2rem)]">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-100 dark:border-neutral-800 flex-shrink-0">
+              <div>
+                <h2 className="font-bold text-neutral-900 dark:text-white">مرفقات العقار</h2>
+                <p className="text-xs text-blue-600 mt-0.5">{attachItem.name}</p>
+              </div>
+              <button onClick={() => setAttachItem(null)} className="p-1.5 rounded-lg text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-6">
+              <AttachmentManager entityType="PROPERTY" entityId={attachItem.id} />
+            </div>
           </div>
         </div>
       )}

@@ -28,8 +28,19 @@ export class ReportsService {
       if (!y) throw new NotFoundException('Fiscal year not found');
       return { startDate: y.startDate, endDate: y.endDate };
     }
-    if (params.startDate && params.endDate) {
-      return { startDate: new Date(params.startDate), endDate: new Date(params.endDate) };
+    
+    if (params.startDate || params.endDate) {
+      // Default startDate to epoch if only endDate is provided (useful for inception-to-date queries)
+      // Default endDate to today if only startDate is provided
+      const startDate = params.startDate ? new Date(params.startDate) : new Date(2000, 0, 1);
+      const endDate = params.endDate ? new Date(params.endDate) : new Date();
+      
+      // Ensure the end date covers the end of the day for accurate point-in-time querying
+      if (params.endDate && endDate.getHours() === 0) {
+        endDate.setHours(23, 59, 59, 999);
+      }
+
+      return { startDate, endDate };
     }
 
     // Default to current open year

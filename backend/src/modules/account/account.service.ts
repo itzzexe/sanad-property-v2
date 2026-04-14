@@ -75,12 +75,31 @@ export class AccountService {
       }
     }
 
+    // Validate code range against settings
+    const settings = await this.prisma.systemSettings.findFirst();
+    if (settings?.accountTypeRanges) {
+      const ranges = settings.accountTypeRanges as Record<string, { from: number; to: number }>;
+      const range = ranges[dto.type];
+      const codeNum = parseInt(dto.code, 10);
+      
+      if (range && (!isNaN(codeNum))) {
+        if (codeNum < range.from || codeNum > range.to) {
+          throw new BadRequestException(`رمز الحساب ${dto.code} خارج النطاق المسموح به (${range.from} - ${range.to}) لنوع الحساب المحدد.`);
+        }
+      }
+    }
+
+    const data = {
+      ...(dto as any),
+      isActive: !needsApproval,
+      pendingApproval: needsApproval,
+    };
+    if (data.parentId === '') {
+      data.parentId = null;
+    }
+
     return this.prisma.account.create({
-      data: {
-        ...(dto as any),
-        isActive: !needsApproval,
-        pendingApproval: needsApproval,
-      },
+      data,
     });
   }
 
@@ -144,6 +163,23 @@ export class AccountService {
 
     if (account.isSystem && (dto as any).code) {
       throw new ConflictException('Cannot change the code of a system account');
+    }
+
+    // Validate code range against settings if code or type is being updated
+    const newCode = (dto as any).code || account.code;
+    const newType = dto.type || account.type;
+    
+    const settings = await this.prisma.systemSettings.findFirst();
+    if (settings?.accountTypeRanges) {
+      const ranges = settings.accountTypeRanges as Record<string, { from: number; to: number }>;
+      const range = ranges[newType];
+      const codeNum = parseInt(newCode, 10);
+      
+      if (range && (!isNaN(codeNum))) {
+        if (codeNum < range.from || codeNum > range.to) {
+          throw new BadRequestException(`رمز الحساب ${newCode} خارج النطاق المسموح به (${range.from} - ${range.to}) لـ ${newType}.`);
+        }
+      }
     }
 
     return this.prisma.account.update({
