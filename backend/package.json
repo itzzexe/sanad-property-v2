@@ -4,7 +4,7 @@
   "description": "RentFlow Advanced Rent Management System - Backend",
   "private": true,
   "scripts": {
-    "build": "npx @nestjs/cli build && npx prisma generate",
+    "build": "npx prisma generate && npx @nestjs/cli build",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:prod": "npx prisma db push --accept-data-loss && node dist/src/main.js",
